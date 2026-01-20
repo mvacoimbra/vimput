@@ -1,6 +1,20 @@
-import { GripHorizontal, Save, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { GripHorizontal, LogOut, Menu, Save, X } from "lucide-react";
+import {
+	forwardRef,
+	useCallback,
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useState,
+} from "react";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContentNoPortal,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
 	createInitialState,
@@ -9,6 +23,10 @@ import {
 	type VimState,
 } from "@/lib/vimEngine";
 import { type Theme, defaultDarkTheme } from "@/lib/themes";
+
+export interface VimputEditorRef {
+	requestClose: () => void;
+}
 
 interface VimputEditorProps {
 	initialText: string;
@@ -29,14 +47,18 @@ interface Size {
 	height: number;
 }
 
-export function VimputEditor({
-	initialText,
-	onSave,
-	onClose,
-	fontSize = 14,
-	theme = defaultDarkTheme,
-	startInInsertMode = false,
-}: VimputEditorProps) {
+export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
+	function VimputEditor(
+		{
+			initialText,
+			onSave,
+			onClose,
+			fontSize = 14,
+			theme = defaultDarkTheme,
+			startInInsertMode = false,
+		},
+		ref,
+	) {
 	const [vimState, setVimState] = useState<VimState>(() => {
 		const state = createInitialState(initialText);
 		if (startInInsertMode) {
@@ -49,9 +71,28 @@ export function VimputEditor({
 	const [isDragging, setIsDragging] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
+	const [cursorVisible, setCursorVisible] = useState(true);
+	const [lastSavedText, setLastSavedText] = useState(initialText);
+	const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
 	const editorRef = useRef<HTMLDivElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
+
+	const hasUnsavedChanges = vimState.text !== lastSavedText;
+
+	// Cursor blinking effect
+	useEffect(() => {
+		const blinkInterval = setInterval(() => {
+			setCursorVisible((prev) => !prev);
+		}, 530);
+
+		return () => clearInterval(blinkInterval);
+	}, []);
+
+	// Reset cursor visibility when state changes (e.g., typing, moving)
+	useEffect(() => {
+		setCursorVisible(true);
+	}, [vimState.cursor, vimState.mode, vimState.text]);
 
 	const colors = theme.colors;
 
@@ -139,10 +180,32 @@ export function VimputEditor({
 		}
 	}, [isResizing, handleResize, handleResizeEnd]);
 
-	const handleSaveAndClose = useCallback(() => {
+	const handleSave = useCallback(() => {
 		onSave(vimState.text);
+		setLastSavedText(vimState.text);
+	}, [vimState.text, onSave]);
+
+	const handleSaveAndClose = useCallback(() => {
+		handleSave();
 		onClose();
-	}, [vimState.text, onSave, onClose]);
+	}, [handleSave, onClose]);
+
+	const handleCloseRequest = useCallback(() => {
+		if (hasUnsavedChanges) {
+			setShowUnsavedDialog(true);
+		} else {
+			onClose();
+		}
+	}, [hasUnsavedChanges, onClose]);
+
+	// Expose requestClose method to parent via ref
+	useImperativeHandle(
+		ref,
+		() => ({
+			requestClose: handleCloseRequest,
+		}),
+		[handleCloseRequest],
+	);
 
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent) => {
@@ -258,29 +321,54 @@ export function VimputEditor({
 						Vimput Editor
 					</span>
 				</div>
-				<div className="flex items-center gap-1">
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => onSave(vimState.text)}
-						className="h-7 px-2"
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-7 w-7 p-0"
+							style={{ color: colors.headerMutedText }}
+						>
+							<Menu className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContentNoPortal
+						align="end"
 						style={{
-							color: colors.statusText,
+							backgroundColor: colors.headerBackground,
+							borderColor: colors.border,
+							color: colors.headerText,
 						}}
 					>
-						<Save className="h-3.5 w-3.5 mr-1" />
-						<span className="text-xs">Save</span>
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={onClose}
-						className="h-7 w-7 p-0"
-						style={{ color: colors.headerMutedText }}
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</div>
+						<DropdownMenuItem
+							onClick={handleSave}
+							className="cursor-pointer gap-2"
+							style={{ color: colors.headerText }}
+						>
+							<Save className="h-4 w-4" />
+							<span>Save</span>
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={handleSaveAndClose}
+							className="cursor-pointer gap-2"
+							style={{ color: colors.headerText }}
+						>
+							<LogOut className="h-4 w-4" />
+							<span>Save and Exit</span>
+						</DropdownMenuItem>
+						<DropdownMenuSeparator
+							style={{ backgroundColor: colors.border }}
+						/>
+						<DropdownMenuItem
+							onClick={onClose}
+							className="cursor-pointer gap-2"
+							style={{ color: "#ef4444" }}
+						>
+							<X className="h-4 w-4" />
+							<span>Exit without Save</span>
+						</DropdownMenuItem>
+					</DropdownMenuContentNoPortal>
+				</DropdownMenu>
 			</div>
 
 			{/* Editor content */}
@@ -338,8 +426,24 @@ export function VimputEditor({
 
 									const style: React.CSSProperties = {};
 									if (isCursor && vimState.mode === "insert") {
-										style.borderLeft = `2px solid ${colors.cursorInsertBorder}`;
-									} else if (isCursor) {
+										// Insert mode: render "|" cursor before the character
+										return (
+											<span key={charIndex} className="relative">
+												<span
+													style={{
+														color: colors.editorText,
+														position: "absolute",
+														left: 0,
+														opacity: cursorVisible ? 1 : 0,
+													}}
+												>
+													|
+												</span>
+												<span>{char}</span>
+											</span>
+										);
+									}
+									if (isCursor && cursorVisible) {
 										style.backgroundColor = colors.cursorBackground;
 										style.color = colors.cursorText;
 									}
@@ -363,16 +467,18 @@ export function VimputEditor({
 											style={
 												vimState.mode === "insert"
 													? {
-															borderLeft: `2px solid ${colors.cursorInsertBorder}`,
-															width: 0,
+															color: colors.editorText,
+															opacity: cursorVisible ? 1 : 0,
 														}
 													: {
-															backgroundColor: colors.cursorBackground,
+															backgroundColor: cursorVisible
+																? colors.cursorBackground
+																: "transparent",
 															width: "0.5rem",
 														}
 											}
 										>
-											{vimState.mode !== "insert" && "\u00A0"}
+											{vimState.mode === "insert" ? "|" : "\u00A0"}
 										</span>
 									)}
 							</div>
@@ -422,9 +528,77 @@ export function VimputEditor({
 					<path d="M14 14H12V12H14V14ZM14 10H12V8H14V10ZM10 14H8V12H10V14ZM14 6H12V4H14V6ZM10 10H8V8H10V10ZM6 14H4V12H6V14Z" />
 				</svg>
 			</div>
+
+			{/* Unsaved changes confirmation dialog */}
+			{showUnsavedDialog && (
+				<div
+					className="fixed inset-0 flex items-center justify-center"
+					style={{
+						backgroundColor: "rgba(0, 0, 0, 0.6)",
+						zIndex: 10,
+					}}
+					onClick={(e) => {
+						if (e.target === e.currentTarget) {
+							setShowUnsavedDialog(false);
+						}
+					}}
+				>
+					<div
+						className="rounded-lg p-6 shadow-xl max-w-sm w-full mx-4"
+						style={{
+							backgroundColor: colors.headerBackground,
+							borderWidth: "1px",
+							borderStyle: "solid",
+							borderColor: colors.border,
+						}}
+					>
+						<h3
+							className="text-lg font-semibold mb-2"
+							style={{ color: colors.headerText }}
+						>
+							Unsaved Changes
+						</h3>
+						<p
+							className="text-sm mb-6"
+							style={{ color: colors.statusText }}
+						>
+							You have unsaved changes. Are you sure you want to leave without
+							saving?
+						</p>
+						<div className="flex gap-3 justify-end">
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setShowUnsavedDialog(false)}
+								style={{
+									borderColor: colors.border,
+									color: colors.headerText,
+								}}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="default"
+								size="sm"
+								onClick={() => {
+									setShowUnsavedDialog(false);
+									onClose();
+								}}
+								style={{
+									backgroundColor: "#ef4444",
+									color: "#ffffff",
+								}}
+							>
+								Leave without Saving
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
-}
+},
+);
 
 function isInVisualSelection(
 	line: number,
