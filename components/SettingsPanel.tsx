@@ -218,13 +218,12 @@ export function SettingsPanel() {
 						max={24}
 						step={1}
 						className="w-full"
-						style={
-							{
-								"--slider-track": colors?.lineNumberBackground,
-								"--slider-range": colors?.statusText,
-								"--slider-thumb": colors?.statusText,
-							} as React.CSSProperties
-						}
+						trackStyle={{ backgroundColor: colors?.lineNumberBackground }}
+						rangeStyle={{ backgroundColor: colors?.statusText }}
+						thumbStyle={{
+							backgroundColor: colors?.background,
+							borderColor: colors?.statusText,
+						}}
 					/>
 					<div
 						className="flex justify-between text-xs"
