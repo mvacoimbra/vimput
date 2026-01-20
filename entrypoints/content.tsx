@@ -2,10 +2,97 @@ import ReactDOM from "react-dom/client";
 import { VimputEditor } from "@/components/VimputEditor";
 import globalsCss from "@/lib/globals.css?inline";
 
-// Store reference to the currently focused input/textarea
-let activeElement: HTMLInputElement | HTMLTextAreaElement | null = null;
+type EditableElement = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
+
+// Store reference to the currently focused editable element
+let activeElement: EditableElement | null = null;
 let editorRoot: ReactDOM.Root | null = null;
 let shadowHost: HTMLDivElement | null = null;
+
+function isEditableElement(element: HTMLElement): boolean {
+	// Standard input/textarea
+	if (
+		element instanceof HTMLInputElement ||
+		element instanceof HTMLTextAreaElement
+	) {
+		return true;
+	}
+
+	// Contenteditable elements
+	if (element.isContentEditable) {
+		return true;
+	}
+
+	// Check for common code editor classes/attributes
+	if (
+		element.classList.contains("monaco-editor") ||
+		element.classList.contains("CodeMirror") ||
+		element.classList.contains("ace_editor") ||
+		element.getAttribute("role") === "textbox" ||
+		element.getAttribute("role") === "code"
+	) {
+		return true;
+	}
+
+	return false;
+}
+
+function findEditableElement(element: HTMLElement): EditableElement | null {
+	// Check the element itself
+	if (isEditableElement(element)) {
+		return element;
+	}
+
+	// Look for hidden textarea (Monaco pattern)
+	const textarea = element.querySelector("textarea");
+	if (textarea) {
+		return textarea;
+	}
+
+	// Look for contenteditable child
+	const contentEditable = element.querySelector("[contenteditable='true']");
+	if (contentEditable instanceof HTMLElement) {
+		return contentEditable;
+	}
+
+	// Walk up the DOM tree to find an editable parent
+	let parent = element.parentElement;
+	while (parent) {
+		if (isEditableElement(parent)) {
+			return parent;
+		}
+		parent = parent.parentElement;
+	}
+
+	return null;
+}
+
+function getElementText(element: EditableElement): string {
+	if (
+		element instanceof HTMLInputElement ||
+		element instanceof HTMLTextAreaElement
+	) {
+		return element.value;
+	}
+
+	// For contenteditable elements, get the text content
+	return element.innerText || element.textContent || "";
+}
+
+function setElementText(element: EditableElement, text: string): void {
+	if (
+		element instanceof HTMLInputElement ||
+		element instanceof HTMLTextAreaElement
+	) {
+		element.value = text;
+		element.dispatchEvent(new Event("input", { bubbles: true }));
+		element.dispatchEvent(new Event("change", { bubbles: true }));
+	} else {
+		// For contenteditable elements
+		element.innerText = text;
+		element.dispatchEvent(new Event("input", { bubbles: true }));
+	}
+}
 
 export default defineContentScript({
 	matches: ["<all_urls>"],
@@ -17,11 +104,9 @@ export default defineContentScript({
 			"focusin",
 			(e) => {
 				const target = e.target as HTMLElement;
-				if (
-					target instanceof HTMLInputElement ||
-					target instanceof HTMLTextAreaElement
-				) {
-					activeElement = target;
+				const editable = findEditableElement(target);
+				if (editable) {
+					activeElement = editable;
 				}
 			},
 			true,
@@ -31,11 +116,9 @@ export default defineContentScript({
 			"contextmenu",
 			(e) => {
 				const target = e.target as HTMLElement;
-				if (
-					target instanceof HTMLInputElement ||
-					target instanceof HTMLTextAreaElement
-				) {
-					activeElement = target;
+				const editable = findEditableElement(target);
+				if (editable) {
+					activeElement = editable;
 				}
 			},
 			true,
@@ -69,7 +152,7 @@ async function getConfig(): Promise<{
 
 async function openEditor() {
 	if (!activeElement) {
-		console.warn("No active input element found");
+		console.warn("No active editable element found");
 		return;
 	}
 
@@ -79,7 +162,7 @@ async function openEditor() {
 	}
 
 	const config = await getConfig();
-	const initialText = activeElement.value || "";
+	const initialText = getElementText(activeElement);
 
 	// Create shadow DOM host for style isolation
 	shadowHost = document.createElement("div");
@@ -91,10 +174,6 @@ async function openEditor() {
     right: 0;
     bottom: 0;
     z-index: 2147483647;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.5);
   `;
 
 	const shadow = shadowHost.attachShadow({ mode: "open" });
@@ -113,10 +192,34 @@ async function openEditor() {
   `;
 	shadow.appendChild(style);
 
+	// Create backdrop for clicking outside
+	const backdrop = document.createElement("div");
+	backdrop.id = "vimput-backdrop";
+	backdrop.style.cssText = `
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+  `;
+	backdrop.addEventListener("click", () => {
+		closeEditor();
+	});
+	shadow.appendChild(backdrop);
+
 	// Create container for React
 	const container = document.createElement("div");
 	container.id = "vimput-editor-container";
 	container.className = config.theme === "dark" ? "dark" : "";
+	container.style.cssText = `
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  `;
 	shadow.appendChild(container);
 
 	document.body.appendChild(shadowHost);
@@ -133,22 +236,12 @@ async function openEditor() {
 			fontSize={config.fontSize}
 			onSave={(text) => {
 				if (targetElement) {
-					targetElement.value = text;
-					// Trigger input event for frameworks that listen to it
-					targetElement.dispatchEvent(new Event("input", { bubbles: true }));
-					targetElement.dispatchEvent(new Event("change", { bubbles: true }));
+					setElementText(targetElement, text);
 				}
 			}}
 			onClose={closeEditor}
 		/>,
 	);
-
-	// Close on escape (handled by the editor) or click outside
-	shadowHost.addEventListener("click", (e) => {
-		if (e.target === shadowHost) {
-			closeEditor();
-		}
-	});
 }
 
 function closeEditor() {
