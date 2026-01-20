@@ -8,13 +8,6 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { type Theme, useConfigStore } from "@/stores/configStore";
@@ -46,19 +39,16 @@ export function SettingsPanel() {
 						<Palette className="h-4 w-4 text-muted-foreground" />
 						<Label htmlFor="theme">Theme</Label>
 					</div>
-					<Select
+					<select
+						id="theme"
 						value={theme}
-						onValueChange={(value: Theme) => setTheme(value)}
+						onChange={(e) => setTheme(e.target.value as Theme)}
+						className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
 					>
-						<SelectTrigger id="theme">
-							<SelectValue placeholder="Select theme" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="dark">Dark</SelectItem>
-							<SelectItem value="light">Light</SelectItem>
-							<SelectItem value="system">System</SelectItem>
-						</SelectContent>
-					</Select>
+						<option value="dark">Dark</option>
+						<option value="light">Light</option>
+						<option value="system">System</option>
+					</select>
 				</div>
 
 				<Separator />
