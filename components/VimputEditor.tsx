@@ -30,7 +30,31 @@ import {
 	processKey,
 	type VimState,
 } from "@/lib/vimEngine";
-import { type Theme, defaultDarkTheme } from "@/lib/themes";
+import { type Theme, type PrismThemeName, defaultDarkTheme } from "@/lib/themes";
+
+// Map prism theme names to actual theme objects
+const prismThemeMap: Record<PrismThemeName, typeof themes.vsDark> = {
+	dracula: themes.dracula,
+	duotoneDark: themes.duotoneDark,
+	duotoneLight: themes.duotoneLight,
+	github: themes.github,
+	gruvboxMaterialDark: themes.gruvboxMaterialDark,
+	gruvboxMaterialLight: themes.gruvboxMaterialLight,
+	jettwaveDark: themes.jettwaveDark,
+	jettwaveLight: themes.jettwaveLight,
+	nightOwl: themes.nightOwl,
+	nightOwlLight: themes.nightOwlLight,
+	oceanicNext: themes.oceanicNext,
+	okaidia: themes.okaidia,
+	oneDark: themes.oneDark,
+	oneLight: themes.oneLight,
+	palenight: themes.palenight,
+	shadesOfPurple: themes.shadesOfPurple,
+	synthwave84: themes.synthwave84,
+	ultramin: themes.ultramin,
+	vsDark: themes.vsDark,
+	vsLight: themes.vsLight,
+};
 
 // Supported languages for syntax highlighting
 const SUPPORTED_LANGUAGES: { value: Language | "plaintext"; label: string }[] = [
@@ -463,27 +487,34 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 						) : (
 							// Syntax highlighted rendering
 							<Highlight
-								theme={themes.vsDark}
+								theme={prismThemeMap[theme.prismTheme]}
 								code={vimState.text}
 								language={selectedLanguage}
 							>
-								{({ tokens: prismTokens }) => (
+								{({ tokens: prismTokens, getTokenProps }) => (
 									<>
-										{prismTokens.map((lineTokens, lineIndex) => (
-											<div
-												key={lineIndex}
-												className="whitespace-pre"
-												style={{ lineHeight: "1.5em" }}
-											>
-												{renderHighlightedLine(
-													lineTokens,
-													lineIndex,
-													vimState,
-													colors,
-													cursorVisible,
-												)}
-											</div>
-										))}
+										{prismTokens.map((lineTokens, lineIndex) => {
+											// Process tokens to include styles from getTokenProps
+											const styledTokens = lineTokens.map((token, tokenIndex) => {
+												const { style } = getTokenProps({ token, key: tokenIndex });
+												return { content: token.content, style };
+											});
+											return (
+												<div
+													key={lineIndex}
+													className="whitespace-pre"
+													style={{ lineHeight: "1.5em" }}
+												>
+													{renderHighlightedLine(
+														styledTokens,
+														lineIndex,
+														vimState,
+														colors,
+														cursorVisible,
+													)}
+												</div>
+											);
+										})}
 									</>
 								)}
 							</Highlight>
@@ -615,6 +646,20 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 								}}
 							>
 								Cancel
+							</Button>
+							<Button
+								variant="default"
+								size="sm"
+								onClick={() => {
+									setShowUnsavedDialog(false);
+									handleSaveAndClose();
+								}}
+								style={{
+									backgroundColor: "#22c55e",
+									color: "#ffffff",
+								}}
+							>
+								Save and Exit
 							</Button>
 							<Button
 								variant="default"
