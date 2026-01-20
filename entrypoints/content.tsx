@@ -1,5 +1,6 @@
 import ReactDOM from "react-dom/client";
-import { VimputEditor } from "@/components/VimputEditor";
+import { createRef } from "react";
+import { VimputEditor, type VimputEditorRef } from "@/components/VimputEditor";
 import globalsCss from "@/lib/globals.css?inline";
 import {
 	type Theme,
@@ -14,6 +15,7 @@ type EditableElement = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
 let activeElement: EditableElement | null = null;
 let editorRoot: ReactDOM.Root | null = null;
 let shadowHost: HTMLDivElement | null = null;
+let editorRef: React.RefObject<VimputEditorRef | null> | null = null;
 
 function isPasswordField(element: HTMLElement): boolean {
 	if (element instanceof HTMLInputElement) {
@@ -272,7 +274,12 @@ async function openEditor(startInInsertMode = false) {
     background: rgba(0, 0, 0, 0.5);
   `;
 	backdrop.addEventListener("click", () => {
-		closeEditor();
+		// Request close through the editor ref to check for unsaved changes
+		if (editorRef?.current) {
+			editorRef.current.requestClose();
+		} else {
+			closeEditor();
+		}
 	});
 	shadow.appendChild(backdrop);
 
@@ -295,10 +302,14 @@ async function openEditor(startInInsertMode = false) {
 	// Store reference to the target element
 	const targetElement = activeElement;
 
+	// Create ref for the editor
+	editorRef = createRef<VimputEditorRef>();
+
 	// Render React component
 	editorRoot = ReactDOM.createRoot(container);
 	editorRoot.render(
 		<VimputEditor
+			ref={editorRef}
 			initialText={initialText}
 			theme={config.theme}
 			fontSize={config.fontSize}
@@ -323,4 +334,6 @@ function closeEditor() {
 		shadowHost.remove();
 		shadowHost = null;
 	}
+
+	editorRef = null;
 }
