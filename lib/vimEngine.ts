@@ -11,6 +11,7 @@ export interface VimState {
 	cursor: CursorPosition;
 	commandBuffer: string;
 	yankBuffer: string;
+	isLineYank: boolean;
 	visualStart: CursorPosition | null;
 }
 
@@ -26,6 +27,7 @@ export function createInitialState(text: string = ""): VimState {
 		cursor: { line: 0, column: 0 },
 		commandBuffer: "",
 		yankBuffer: "",
+		isLineYank: false,
 		visualStart: null,
 	};
 }
@@ -148,6 +150,7 @@ export function processKey(state: VimState, key: string): VimState {
 				...state,
 				mode: "normal",
 				yankBuffer: yanked,
+				isLineYank: false,
 				visualStart: null,
 			};
 		}
@@ -249,6 +252,7 @@ export function processKey(state: VimState, key: string): VimState {
 					column: clampColumn(lines[newLine] || "", 0, "normal"),
 				},
 				yankBuffer: yanked,
+				isLineYank: true,
 				commandBuffer: "",
 			};
 		}
@@ -258,7 +262,12 @@ export function processKey(state: VimState, key: string): VimState {
 
 		// Handle yy (yank line)
 		if (key === "y" && state.commandBuffer === "y") {
-			return { ...state, yankBuffer: currentLine, commandBuffer: "" };
+			return {
+				...state,
+				yankBuffer: currentLine,
+				isLineYank: true,
+				commandBuffer: "",
+			};
 		}
 		if (key === "y") {
 			return { ...state, commandBuffer: "y" };
@@ -266,15 +275,15 @@ export function processKey(state: VimState, key: string): VimState {
 
 		// Paste
 		if (key === "p") {
-			if (state.yankBuffer.includes("\n") || !state.yankBuffer) {
-				// Line paste
+			if (state.isLineYank) {
+				// Line paste - create new line below with yanked content
 				lines.splice(state.cursor.line + 1, 0, state.yankBuffer);
 				return {
 					...state,
 					text: joinLines(lines),
 					cursor: { line: state.cursor.line + 1, column: 0 },
 				};
-			} else {
+			} else if (state.yankBuffer) {
 				// Character paste
 				const newLine =
 					currentLine.slice(0, state.cursor.column + 1) +
@@ -290,16 +299,19 @@ export function processKey(state: VimState, key: string): VimState {
 					},
 				};
 			}
+			return state;
 		}
 		if (key === "P") {
-			if (state.yankBuffer.includes("\n") || !state.yankBuffer) {
+			if (state.isLineYank) {
+				// Line paste - create new line above with yanked content
 				lines.splice(state.cursor.line, 0, state.yankBuffer);
 				return {
 					...state,
 					text: joinLines(lines),
 					cursor: { line: state.cursor.line, column: 0 },
 				};
-			} else {
+			} else if (state.yankBuffer) {
+				// Character paste
 				const newLine =
 					currentLine.slice(0, state.cursor.column) +
 					state.yankBuffer +
@@ -310,6 +322,7 @@ export function processKey(state: VimState, key: string): VimState {
 					text: joinLines(lines),
 				};
 			}
+			return state;
 		}
 
 		// Undo command buffer on other keys
