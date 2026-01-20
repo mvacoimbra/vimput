@@ -15,5 +15,13 @@ export default defineConfig({
 			48: "icons/png/icon-48.png",
 			128: "icons/png/icon-128.png",
 		},
+		browser_specific_settings: {
+			gecko: {
+				id: "vimput@extension",
+				data_collection_permissions: {
+					data_collection_enabled: false,
+				},
+			},
+		},
 	},
 });
