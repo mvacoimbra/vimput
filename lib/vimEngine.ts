@@ -235,6 +235,9 @@ export function processKey(state: VimState, key: string): VimState {
 		if (key === "d" || key === "x") {
 			return deleteVisualSelection(state);
 		}
+		if (key === "c") {
+			return changeVisualSelection(state);
+		}
 		// Movement in visual mode
 		return { ...state, ...handleNormalMovement(state, key) };
 	}
@@ -256,6 +259,9 @@ export function processKey(state: VimState, key: string): VimState {
 		}
 		if (key === "d" || key === "x") {
 			return deleteVisualLineSelection(state);
+		}
+		if (key === "c") {
+			return changeVisualLineSelection(state);
 		}
 		// Movement in visual-line mode
 		return { ...state, ...handleNormalMovement(state, key) };
@@ -1014,6 +1020,44 @@ function deleteVisualSelection(state: VimState): VimState {
 	};
 }
 
+function changeVisualSelection(state: VimState): VimState {
+	if (!state.visualStart) return { ...state, mode: "normal" };
+
+	const lines = getLines(state.text);
+	const start = state.visualStart;
+	const end = state.cursor;
+
+	const [s, e] =
+		start.line < end.line ||
+		(start.line === end.line && start.column <= end.column)
+			? [start, end]
+			: [end, start];
+
+	const yanked = getVisualSelection(state);
+
+	if (s.line === e.line) {
+		const line = lines[s.line];
+		lines[s.line] = line.slice(0, s.column) + line.slice(e.column + 1);
+	} else {
+		const firstPart = lines[s.line].slice(0, s.column);
+		const lastPart = lines[e.line].slice(e.column + 1);
+		lines.splice(s.line, e.line - s.line + 1, firstPart + lastPart);
+	}
+
+	return {
+		...state,
+		mode: "insert",
+		text: joinLines(lines),
+		cursor: {
+			line: s.line,
+			column: s.column,
+		},
+		yankBuffer: yanked,
+		isLineYank: false,
+		visualStart: null,
+	};
+}
+
 function getVisualLineSelection(state: VimState): string {
 	if (!state.visualStart) return "";
 
@@ -1051,6 +1095,32 @@ function deleteVisualLineSelection(state: VimState): VimState {
 		cursor: {
 			line: newLine,
 			column: clampColumn(lines[newLine] || "", 0, "normal"),
+		},
+		yankBuffer: yanked,
+		isLineYank: true,
+		visualStart: null,
+	};
+}
+
+function changeVisualLineSelection(state: VimState): VimState {
+	if (!state.visualStart) return { ...state, mode: "normal" };
+
+	const lines = getLines(state.text);
+	const startLine = Math.min(state.visualStart.line, state.cursor.line);
+	const endLine = Math.max(state.visualStart.line, state.cursor.line);
+
+	const yanked = getVisualLineSelection(state);
+
+	// Replace selected lines with a single empty line
+	lines.splice(startLine, endLine - startLine + 1, "");
+
+	return {
+		...state,
+		mode: "insert",
+		text: joinLines(lines),
+		cursor: {
+			line: startLine,
+			column: 0,
 		},
 		yankBuffer: yanked,
 		isLineYank: true,
