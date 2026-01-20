@@ -1,6 +1,12 @@
 import ReactDOM from "react-dom/client";
 import { VimputEditor } from "@/components/VimputEditor";
 import globalsCss from "@/lib/globals.css?inline";
+import {
+	type Theme,
+	type ThemeColors,
+	defaultDarkTheme,
+	getThemeById,
+} from "@/lib/themes";
 
 type EditableElement = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
 
@@ -9,7 +15,19 @@ let activeElement: EditableElement | null = null;
 let editorRoot: ReactDOM.Root | null = null;
 let shadowHost: HTMLDivElement | null = null;
 
+function isPasswordField(element: HTMLElement): boolean {
+	if (element instanceof HTMLInputElement) {
+		return element.type === "password";
+	}
+	return false;
+}
+
 function isEditableElement(element: HTMLElement): boolean {
+	// Ignore password fields
+	if (isPasswordField(element)) {
+		return false;
+	}
+
 	// Standard input/textarea
 	if (
 		element instanceof HTMLInputElement ||
@@ -124,6 +142,26 @@ export default defineContentScript({
 			true,
 		);
 
+		// Handle click on editable elements to open editor if enabled
+		document.addEventListener(
+			"click",
+			async (e) => {
+				const target = e.target as HTMLElement;
+				const editable = findEditableElement(target);
+				if (editable) {
+					activeElement = editable;
+					const config = await getConfig();
+					if (config.openOnClick) {
+						// Small delay to ensure focus is set
+						setTimeout(() => {
+							openEditor();
+						}, 50);
+					}
+				}
+			},
+			true,
+		);
+
 		// Listen for messages from background script
 		browser.runtime.onMessage.addListener((message) => {
 			if (message.type === "OPEN_VIMPUT_EDITOR") {
@@ -135,24 +173,53 @@ export default defineContentScript({
 	},
 });
 
-async function getConfig(): Promise<{
-	theme: "dark" | "light";
+interface EditorConfig {
+	theme: Theme;
 	fontSize: number;
-}> {
+	openOnClick: boolean;
+}
+
+async function getConfig(): Promise<EditorConfig> {
 	try {
-		const result = await browser.storage.sync.get(["theme", "fontSize"]);
+		const result = await browser.storage.sync.get([
+			"themeId",
+			"customColors",
+			"fontSize",
+			"openOnClick",
+		]);
+
+		const themeId = (result.themeId as string) || "default-dark";
+		const customColors = (result.customColors as Partial<ThemeColors>) || {};
+		const baseTheme = getThemeById(themeId) || defaultDarkTheme;
+
+		const theme: Theme =
+			Object.keys(customColors).length > 0
+				? {
+						...baseTheme,
+						id: "custom",
+						name: `${baseTheme.name} (Custom)`,
+						colors: { ...baseTheme.colors, ...customColors },
+					}
+				: baseTheme;
+
 		return {
-			theme: (result.theme as "dark" | "light") || "dark",
-			fontSize: result.fontSize || 14,
+			theme,
+			fontSize: (result.fontSize as number) || 14,
+			openOnClick: (result.openOnClick as boolean) ?? false,
 		};
 	} catch {
-		return { theme: "dark", fontSize: 14 };
+		return { theme: defaultDarkTheme, fontSize: 14, openOnClick: false };
 	}
 }
 
-async function openEditor() {
+async function openEditor(startInInsertMode = false) {
 	if (!activeElement) {
 		console.warn("No active editable element found");
+		return;
+	}
+
+	// Don't open editor for password fields
+	if (isPasswordField(activeElement)) {
 		return;
 	}
 
@@ -163,6 +230,7 @@ async function openEditor() {
 
 	const config = await getConfig();
 	const initialText = getElementText(activeElement);
+	const shouldStartInInsertMode = startInInsertMode || config.openOnClick;
 
 	// Create shadow DOM host for style isolation
 	shadowHost = document.createElement("div");
@@ -211,7 +279,7 @@ async function openEditor() {
 	// Create container for React
 	const container = document.createElement("div");
 	container.id = "vimput-editor-container";
-	container.className = config.theme === "dark" ? "dark" : "";
+	container.className = config.theme.baseTheme === "dark" ? "dark" : "";
 	container.style.cssText = `
     position: absolute;
     top: 0;
@@ -234,6 +302,7 @@ async function openEditor() {
 			initialText={initialText}
 			theme={config.theme}
 			fontSize={config.fontSize}
+			startInInsertMode={shouldStartInInsertMode}
 			onSave={(text) => {
 				if (targetElement) {
 					setElementText(targetElement, text);
