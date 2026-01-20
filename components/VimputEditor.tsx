@@ -414,15 +414,24 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 										lineIndex === vimState.cursor.line &&
 										charIndex === vimState.cursor.column;
 
-									const isVisualSelected =
-										vimState.mode === "visual" &&
-										vimState.visualStart &&
-										isInVisualSelection(
-											lineIndex,
-											charIndex,
-											vimState.visualStart,
-											vimState.cursor,
-										);
+								const isVisualSelected =
+									vimState.mode === "visual" &&
+									vimState.visualStart &&
+									isInVisualSelection(
+										lineIndex,
+										charIndex,
+										vimState.visualStart,
+										vimState.cursor,
+									);
+
+								const isVisualLineSelected =
+									vimState.mode === "visual-line" &&
+									vimState.visualStart &&
+									isInVisualLineSelection(
+										lineIndex,
+										vimState.visualStart.line,
+										vimState.cursor.line,
+									);
 
 									const style: React.CSSProperties = {};
 									if (isCursor && vimState.mode === "insert") {
@@ -447,9 +456,9 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 										style.backgroundColor = colors.cursorBackground;
 										style.color = colors.cursorText;
 									}
-									if (isVisualSelected) {
-										style.backgroundColor = colors.visualSelection;
-									}
+								if (isVisualSelected || isVisualLineSelected) {
+									style.backgroundColor = colors.visualSelection;
+								}
 
 									return (
 										<span key={charIndex} style={style}>
@@ -457,6 +466,26 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 										</span>
 									);
 								})}
+								{/* Visual-line selection for empty lines */}
+								{line.length === 0 &&
+									vimState.mode === "visual-line" &&
+									vimState.visualStart &&
+									isInVisualLineSelection(
+										lineIndex,
+										vimState.visualStart.line,
+										vimState.cursor.line,
+									) &&
+									lineIndex !== vimState.cursor.line && (
+										<span
+											className="inline-block"
+											style={{
+												backgroundColor: colors.visualSelection,
+												width: "0.5rem",
+											}}
+										>
+											{"\u00A0"}
+										</span>
+									)}
 								{/* Cursor at end of line or empty line */}
 								{(line.length === 0 ||
 									(lineIndex === vimState.cursor.line &&
@@ -619,6 +648,16 @@ function isInVisualSelection(
 	if (line === s.line) return col >= s.column;
 	if (line === e.line) return col <= e.column;
 	return true;
+}
+
+function isInVisualLineSelection(
+	line: number,
+	startLine: number,
+	endLine: number,
+): boolean {
+	const minLine = Math.min(startLine, endLine);
+	const maxLine = Math.max(startLine, endLine);
+	return line >= minLine && line <= maxLine;
 }
 
 export default VimputEditor;
