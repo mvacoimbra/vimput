@@ -557,7 +557,6 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 							onKeyDown={(e) => e.stopPropagation()}
 						>
 							<SelectValue />
-							<ChevronDown className="h-3 w-3 opacity-50" />
 						</SelectTrigger>
 						<SelectContentNoPortal
 							side="top"
