@@ -35,6 +35,7 @@ interface VimputEditorProps {
 	fontSize?: number;
 	theme?: Theme;
 	startInInsertMode?: boolean;
+	inputLabel?: string;
 }
 
 interface Position {
@@ -56,6 +57,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			fontSize = 14,
 			theme = defaultDarkTheme,
 			startInInsertMode = false,
+			inputLabel,
 		},
 		ref,
 	) {
@@ -315,10 +317,11 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 						style={{ color: colors.headerMutedText }}
 					/>
 					<span
-						className="text-sm font-medium"
+						className="text-sm font-medium truncate max-w-[300px]"
 						style={{ color: colors.headerText }}
+						title={inputLabel || "Vimput Editor"}
 					>
-						Vimput Editor
+						{inputLabel || "Vimput Editor"}
 					</span>
 				</div>
 				<DropdownMenu>
