@@ -1,12 +1,103 @@
-import { MousePointerClick, RotateCcw, Type } from "lucide-react";
+import { HelpCircle, MousePointerClick, RotateCcw, Type } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type ThemeColors, builtInThemes, getThemeById } from "@/lib/themes";
 import { useConfigStore } from "@/stores/configStore";
+
+interface KeybindItem {
+	keys: string[];
+	description: string;
+}
+
+interface KeybindCategory {
+	title: string;
+	items: KeybindItem[];
+}
+
+const keybindCategories: KeybindCategory[] = [
+	{
+		title: "Mode Switching",
+		items: [
+			{ keys: ["i"], description: "Insert mode (before cursor)" },
+			{ keys: ["a"], description: "Insert mode (after cursor)" },
+			{ keys: ["I"], description: "Insert at line start" },
+			{ keys: ["A"], description: "Insert at line end" },
+			{ keys: ["o"], description: "Open line below" },
+			{ keys: ["O"], description: "Open line above" },
+			{ keys: ["v"], description: "Visual mode" },
+			{ keys: ["V"], description: "Visual line mode" },
+			{ keys: [":"], description: "Command mode" },
+			{ keys: ["Esc"], description: "Back to Normal mode" },
+		],
+	},
+	{
+		title: "Navigation",
+		items: [
+			{ keys: ["h", "←"], description: "Move left" },
+			{ keys: ["j", "↓"], description: "Move down" },
+			{ keys: ["k", "↑"], description: "Move up" },
+			{ keys: ["l", "→"], description: "Move right" },
+			{ keys: ["w"], description: "Next word" },
+			{ keys: ["e"], description: "End of word" },
+			{ keys: ["b"], description: "Previous word" },
+			{ keys: ["0"], description: "Start of line" },
+			{ keys: ["$"], description: "End of line" },
+			{ keys: ["gg"], description: "First line" },
+			{ keys: ["G"], description: "Last line" },
+			{ keys: ["{"], description: "Previous paragraph" },
+			{ keys: ["}"], description: "Next paragraph" },
+		],
+	},
+	{
+		title: "Editing",
+		items: [
+			{ keys: ["x"], description: "Delete character" },
+			{ keys: ["r"], description: "Replace character" },
+			{ keys: ["dd"], description: "Delete line" },
+			{ keys: ["cc"], description: "Change line" },
+			{ keys: ["cw"], description: "Change word" },
+			{ keys: ["ce"], description: "Change to end of word" },
+			{ keys: ["c$"], description: "Change to end of line" },
+			{ keys: ["c0"], description: "Change to line start" },
+		],
+	},
+	{
+		title: "Text Objects",
+		items: [
+			{ keys: ["ciw"], description: "Change inner word" },
+			{ keys: ["ci("], description: "Change inside parentheses" },
+			{ keys: ["ci{"], description: "Change inside braces" },
+			{ keys: ["ci["], description: "Change inside brackets" },
+			{ keys: ['ci"'], description: "Change inside double quotes" },
+			{ keys: ["ci'"], description: "Change inside single quotes" },
+			{ keys: ["ca("], description: "Change around parentheses" },
+		],
+	},
+	{
+		title: "Yank & Paste",
+		items: [
+			{ keys: ["yy"], description: "Yank (copy) line" },
+			{ keys: ["y"], description: "Yank selection (visual)" },
+			{ keys: ["p"], description: "Paste after" },
+			{ keys: ["P"], description: "Paste before" },
+			{ keys: ["d"], description: "Delete selection (visual)" },
+		],
+	},
+	{
+		title: "Commands",
+		items: [
+			{ keys: [":w"], description: "Save changes" },
+			{ keys: [":q"], description: "Quit/Close editor" },
+			{ keys: [":wq"], description: "Save and quit" },
+			{ keys: [":q!"], description: "Quit without saving" },
+		],
+	},
+];
 
 const colorLabels: Record<keyof ThemeColors, string> = {
 	background: "Background",
@@ -85,7 +176,7 @@ export function SettingsPanel() {
 	return (
 		<Tabs defaultValue="theme" className="w-full">
 			<TabsList
-				className="grid w-full grid-cols-3"
+				className="grid w-full grid-cols-4"
 				style={{ backgroundColor: colors?.lineNumberBackground }}
 			>
 				<TabsTrigger
@@ -109,6 +200,14 @@ export function SettingsPanel() {
 					className="data-[state=active]:shadow-none"
 				>
 					Misc
+				</TabsTrigger>
+				<TabsTrigger
+					value="help"
+					style={tabTriggerStyle}
+					className="data-[state=active]:shadow-none"
+				>
+					<HelpCircle className="h-3 w-3 mr-1" />
+					Help
 				</TabsTrigger>
 			</TabsList>
 
@@ -271,6 +370,73 @@ export function SettingsPanel() {
 							} as React.CSSProperties
 						}
 					/>
+				</div>
+			</TabsContent>
+
+			{/* Help Tab */}
+			<TabsContent value="help" className="mt-4">
+				<div
+					className="h-64 rounded-md border overflow-y-auto"
+					style={{
+						borderColor: colors?.border,
+						backgroundColor: colors?.lineNumberBackground,
+					}}
+				>
+					<div className="p-3 space-y-4">
+						{keybindCategories.map((category) => (
+							<div key={category.title} className="space-y-2">
+								<h3
+									className="text-xs font-semibold uppercase tracking-wide sticky top-0 py-1"
+									style={{
+										color: colors?.statusText,
+										backgroundColor: colors?.lineNumberBackground,
+									}}
+								>
+									{category.title}
+								</h3>
+								<div className="space-y-1.5">
+									{category.items.map((item) => (
+										<div
+											key={item.keys.join("-")}
+											className="flex items-center justify-between gap-2"
+										>
+											<span
+												className="text-xs"
+												style={{ color: colors?.headerMutedText }}
+											>
+												{item.description}
+											</span>
+											<div className="flex items-center gap-1 flex-shrink-0">
+												{item.keys.map((key, index) => (
+													<span key={key} className="flex items-center gap-1">
+														{index > 0 && (
+															<span
+																className="text-xs"
+																style={{ color: colors?.headerMutedText }}
+															>
+																/
+															</span>
+														)}
+														<Kbd
+															style={{
+																backgroundColor: colors?.editorBackground,
+																color: colors?.editorText,
+																borderColor: colors?.border,
+																borderWidth: "1px",
+																borderStyle: "solid",
+															}}
+														>
+															{key}
+														</Kbd>
+													</span>
+												))}
+											</div>
+										</div>
+									))}
+								</div>
+							</div>
+						))}
+					</div>
 				</div>
 			</TabsContent>
 		</Tabs>
