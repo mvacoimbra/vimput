@@ -1,4 +1,4 @@
-export type VimMode = "normal" | "insert" | "visual" | "visual-line" | "command";
+export type VimMode = "normal" | "insert" | "visual" | "visual-line" | "command" | "replace-char" | "operator-pending";
 
 export interface CursorPosition {
 	line: number;
@@ -13,6 +13,7 @@ export interface VimState {
 	yankBuffer: string;
 	isLineYank: boolean;
 	visualStart: CursorPosition | null;
+	pendingOperator: string | null; // For operators like 'c', 'd' waiting for motion
 }
 
 export interface VimAction {
@@ -29,6 +30,7 @@ export function createInitialState(text: string = ""): VimState {
 		yankBuffer: "",
 		isLineYank: false,
 		visualStart: null,
+		pendingOperator: null,
 	};
 }
 
@@ -69,6 +71,34 @@ export function processKey(state: VimState, key: string): VimState {
 			return { ...state, commandBuffer: state.commandBuffer + key };
 		}
 		return state;
+	}
+
+	// Handle replace-char mode (r command)
+	if (state.mode === "replace-char") {
+		if (key === "Escape") {
+			return { ...state, mode: "normal" };
+		}
+		if (key.length === 1 && currentLine.length > 0) {
+			const newLine =
+				currentLine.slice(0, state.cursor.column) +
+				key +
+				currentLine.slice(state.cursor.column + 1);
+			lines[state.cursor.line] = newLine;
+			return {
+				...state,
+				mode: "normal",
+				text: joinLines(lines),
+			};
+		}
+		return { ...state, mode: "normal" };
+	}
+
+	// Handle operator-pending mode (c, d with motion)
+	if (state.mode === "operator-pending") {
+		if (key === "Escape") {
+			return { ...state, mode: "normal", pendingOperator: null, commandBuffer: "" };
+		}
+		return handleOperatorPending(state, key);
 	}
 
 	// Handle insert mode
@@ -291,6 +321,16 @@ export function processKey(state: VimState, key: string): VimState {
 			return { ...state, mode: "visual-line", visualStart: { ...state.cursor } };
 		}
 
+		// Replace character (r)
+		if (key === "r") {
+			return { ...state, mode: "replace-char" };
+		}
+
+		// Change operator (c)
+		if (key === "c") {
+			return { ...state, mode: "operator-pending", pendingOperator: "c", commandBuffer: "c" };
+		}
+
 		// Delete character
 		if (key === "x") {
 			if (currentLine.length > 0) {
@@ -308,6 +348,21 @@ export function processKey(state: VimState, key: string): VimState {
 				};
 			}
 			return state;
+		}
+
+		// Handle cc (change line)
+		if (key === "c" && state.commandBuffer === "c") {
+			const yanked = currentLine;
+			lines[state.cursor.line] = "";
+			return {
+				...state,
+				mode: "insert",
+				text: joinLines(lines),
+				cursor: { ...state.cursor, column: 0 },
+				yankBuffer: yanked,
+				isLineYank: true,
+				commandBuffer: "",
+			};
 		}
 
 		// Handle dd (delete line)
@@ -400,6 +455,18 @@ export function processKey(state: VimState, key: string): VimState {
 			return state;
 		}
 
+		// Handle gg (go to first line)
+		if (key === "g" && state.commandBuffer === "g") {
+			return {
+				...state,
+				cursor: { line: 0, column: 0 },
+				commandBuffer: "",
+			};
+		}
+		if (key === "g" && !state.commandBuffer) {
+			return { ...state, commandBuffer: "g" };
+		}
+
 		// Undo command buffer on other keys
 		if (state.commandBuffer) {
 			return { ...state, commandBuffer: "" };
@@ -468,6 +535,8 @@ function handleNormalMovement(state: VimState, key: string): Partial<VimState> {
 			break;
 		case "w":
 			return moveToNextWord(state);
+		case "e":
+			return moveToEndOfWord(state);
 		case "b":
 			return moveToPreviousWord(state);
 		case "0":
@@ -479,11 +548,6 @@ function handleNormalMovement(state: VimState, key: string): Partial<VimState> {
 					column: Math.max(0, currentLine.length - 1),
 				},
 			};
-		case "g":
-			if (state.commandBuffer === "g") {
-				return { cursor: { line: 0, column: 0 }, commandBuffer: "" };
-			}
-			return { commandBuffer: "g" };
 		case "G": {
 			const lastLine = lines.length - 1;
 			return {
@@ -493,6 +557,10 @@ function handleNormalMovement(state: VimState, key: string): Partial<VimState> {
 				},
 			};
 		}
+		case "{":
+			return moveToPreviousParagraph(state);
+		case "}":
+			return moveToNextParagraph(state);
 	}
 
 	return {};
@@ -531,6 +599,47 @@ function moveToNextWord(state: VimState): Partial<VimState> {
 	};
 }
 
+function moveToEndOfWord(state: VimState): Partial<VimState> {
+	const lines = getLines(state.text);
+	let { line, column } = state.cursor;
+	const currentLine = lines[line] || "";
+
+	// Move forward one to start searching
+	if (column < currentLine.length - 1) {
+		column++;
+	}
+
+	// Skip whitespace
+	while (column < currentLine.length && /\s/.test(currentLine[column])) {
+		column++;
+	}
+
+	// If at end of line, move to next line
+	if (column >= currentLine.length && line < lines.length - 1) {
+		line++;
+		column = 0;
+		const nextLine = lines[line];
+		// Skip leading whitespace
+		while (column < nextLine.length && /\s/.test(nextLine[column])) {
+			column++;
+		}
+	}
+
+	const targetLine = lines[line] || "";
+	
+	// Move to end of current word
+	while (column < targetLine.length - 1 && /\w/.test(targetLine[column + 1])) {
+		column++;
+	}
+
+	return {
+		cursor: {
+			line,
+			column: clampColumn(lines[line] || "", column, state.mode),
+		},
+	};
+}
+
 function moveToPreviousWord(state: VimState): Partial<VimState> {
 	const lines = getLines(state.text);
 	let { line, column } = state.cursor;
@@ -557,6 +666,289 @@ function moveToPreviousWord(state: VimState): Partial<VimState> {
 	}
 
 	return { cursor: { line, column } };
+}
+
+function moveToPreviousParagraph(state: VimState): Partial<VimState> {
+	const lines = getLines(state.text);
+	let { line } = state.cursor;
+
+	// Move up to find previous empty line (paragraph boundary)
+	if (line > 0) line--;
+	
+	while (line > 0 && lines[line].trim() !== "") {
+		line--;
+	}
+
+	return {
+		cursor: {
+			line,
+			column: 0,
+		},
+	};
+}
+
+function moveToNextParagraph(state: VimState): Partial<VimState> {
+	const lines = getLines(state.text);
+	let { line } = state.cursor;
+
+	// Move down to find next empty line (paragraph boundary)
+	if (line < lines.length - 1) line++;
+	
+	while (line < lines.length - 1 && lines[line].trim() !== "") {
+		line++;
+	}
+
+	return {
+		cursor: {
+			line,
+			column: 0,
+		},
+	};
+}
+
+function handleOperatorPending(state: VimState, key: string): VimState {
+	const lines = getLines(state.text);
+	const currentLine = lines[state.cursor.line] || "";
+	const operator = state.pendingOperator;
+	const buffer = state.commandBuffer;
+
+	// Handle ci and ca (change in/around)
+	if (buffer === "c" && (key === "i" || key === "a")) {
+		return {
+			...state,
+			commandBuffer: buffer + key,
+		};
+	}
+
+	// Handle ciX and caX where X is a text object
+	if ((buffer === "ci" || buffer === "ca") && key.length === 1) {
+		const isInner = buffer === "ci";
+		const result = findTextObject(state, key, isInner);
+		
+		if (result) {
+			const { start, end, startLine, endLine } = result;
+			
+			// Delete the text object and enter insert mode
+			if (startLine === endLine) {
+				const line = lines[startLine];
+				const yanked = line.slice(start, end);
+				lines[startLine] = line.slice(0, start) + line.slice(end);
+				return {
+					...state,
+					mode: "insert",
+					text: joinLines(lines),
+					cursor: { line: startLine, column: start },
+					yankBuffer: yanked,
+					isLineYank: false,
+					pendingOperator: null,
+					commandBuffer: "",
+				};
+			}
+		}
+		
+		return { ...state, mode: "normal", pendingOperator: null, commandBuffer: "" };
+	}
+
+	// Handle cc (change line) - already handled in normal mode
+	if (buffer === "c" && key === "c") {
+		const yanked = currentLine;
+		lines[state.cursor.line] = "";
+		return {
+			...state,
+			mode: "insert",
+			text: joinLines(lines),
+			cursor: { ...state.cursor, column: 0 },
+			yankBuffer: yanked,
+			isLineYank: true,
+			pendingOperator: null,
+			commandBuffer: "",
+		};
+	}
+
+	// Handle cw (change word)
+	if (buffer === "c" && key === "w") {
+		const { cursor } = moveToNextWord(state) as { cursor: CursorPosition };
+		const endCol = cursor.line === state.cursor.line ? cursor.column : currentLine.length;
+		const yanked = currentLine.slice(state.cursor.column, endCol);
+		lines[state.cursor.line] = currentLine.slice(0, state.cursor.column) + currentLine.slice(endCol);
+		return {
+			...state,
+			mode: "insert",
+			text: joinLines(lines),
+			yankBuffer: yanked,
+			isLineYank: false,
+			pendingOperator: null,
+			commandBuffer: "",
+		};
+	}
+
+	// Handle ce (change to end of word)
+	if (buffer === "c" && key === "e") {
+		const { cursor } = moveToEndOfWord(state) as { cursor: CursorPosition };
+		const endCol = cursor.line === state.cursor.line ? cursor.column + 1 : currentLine.length;
+		const yanked = currentLine.slice(state.cursor.column, endCol);
+		lines[state.cursor.line] = currentLine.slice(0, state.cursor.column) + currentLine.slice(endCol);
+		return {
+			...state,
+			mode: "insert",
+			text: joinLines(lines),
+			yankBuffer: yanked,
+			isLineYank: false,
+			pendingOperator: null,
+			commandBuffer: "",
+		};
+	}
+
+	// Handle c$ (change to end of line)
+	if (buffer === "c" && key === "$") {
+		const yanked = currentLine.slice(state.cursor.column);
+		lines[state.cursor.line] = currentLine.slice(0, state.cursor.column);
+		return {
+			...state,
+			mode: "insert",
+			text: joinLines(lines),
+			yankBuffer: yanked,
+			isLineYank: false,
+			pendingOperator: null,
+			commandBuffer: "",
+		};
+	}
+
+	// Handle c0 (change to start of line)
+	if (buffer === "c" && key === "0") {
+		const yanked = currentLine.slice(0, state.cursor.column);
+		lines[state.cursor.line] = currentLine.slice(state.cursor.column);
+		return {
+			...state,
+			mode: "insert",
+			text: joinLines(lines),
+			cursor: { ...state.cursor, column: 0 },
+			yankBuffer: yanked,
+			isLineYank: false,
+			pendingOperator: null,
+			commandBuffer: "",
+		};
+	}
+
+	// Cancel on unknown key
+	return { ...state, mode: "normal", pendingOperator: null, commandBuffer: "" };
+}
+
+function findTextObject(
+	state: VimState,
+	char: string,
+	isInner: boolean,
+): { start: number; end: number; startLine: number; endLine: number } | null {
+	const lines = getLines(state.text);
+	const currentLine = lines[state.cursor.line] || "";
+	const col = state.cursor.column;
+
+	// Pair characters
+	const pairs: Record<string, [string, string]> = {
+		"(": ["(", ")"],
+		")": ["(", ")"],
+		"[": ["[", "]"],
+		"]": ["[", "]"],
+		"{": ["{", "}"],
+		"}": ["{", "}"],
+		"<": ["<", ">"],
+		">": ["<", ">"],
+		'"': ['"', '"'],
+		"'": ["'", "'"],
+		"`": ["`", "`"],
+	};
+
+	// Word object
+	if (char === "w") {
+		// Find word boundaries
+		let start = col;
+		let end = col;
+
+		// Find start of word
+		while (start > 0 && /\w/.test(currentLine[start - 1])) {
+			start--;
+		}
+		// Find end of word
+		while (end < currentLine.length && /\w/.test(currentLine[end])) {
+			end++;
+		}
+
+		if (!isInner) {
+			// Include trailing whitespace for "aw"
+			while (end < currentLine.length && /\s/.test(currentLine[end])) {
+				end++;
+			}
+		}
+
+		return { start, end, startLine: state.cursor.line, endLine: state.cursor.line };
+	}
+
+	// Pair objects
+	if (pairs[char]) {
+		const [open, close] = pairs[char];
+		const isSameChar = open === close;
+
+		if (isSameChar) {
+			// For quotes, find the enclosing pair
+			let start = currentLine.lastIndexOf(open, col);
+			let end = currentLine.indexOf(close, col);
+			
+			// If cursor is on a quote, decide which direction
+			if (currentLine[col] === open) {
+				const nextQuote = currentLine.indexOf(close, col + 1);
+				if (nextQuote !== -1) {
+					start = col;
+					end = nextQuote;
+				}
+			}
+
+			if (start !== -1 && end !== -1 && start < end) {
+				if (isInner) {
+					return { start: start + 1, end, startLine: state.cursor.line, endLine: state.cursor.line };
+				}
+				return { start, end: end + 1, startLine: state.cursor.line, endLine: state.cursor.line };
+			}
+		} else {
+			// For brackets, handle nesting
+			let depth = 0;
+			let start = -1;
+			let end = -1;
+
+			// Search backwards for opening bracket
+			for (let i = col; i >= 0; i--) {
+				if (currentLine[i] === close) depth++;
+				if (currentLine[i] === open) {
+					if (depth === 0) {
+						start = i;
+						break;
+					}
+					depth--;
+				}
+			}
+
+			// Search forwards for closing bracket
+			depth = 0;
+			for (let i = col; i < currentLine.length; i++) {
+				if (currentLine[i] === open) depth++;
+				if (currentLine[i] === close) {
+					if (depth === 0) {
+						end = i;
+						break;
+					}
+					depth--;
+				}
+			}
+
+			if (start !== -1 && end !== -1) {
+				if (isInner) {
+					return { start: start + 1, end, startLine: state.cursor.line, endLine: state.cursor.line };
+				}
+				return { start, end: end + 1, startLine: state.cursor.line, endLine: state.cursor.line };
+			}
+		}
+	}
+
+	return null;
 }
 
 function getVisualSelection(state: VimState): string {
@@ -699,5 +1091,9 @@ export function getModeDisplay(mode: VimMode): string {
 			return "-- VISUAL LINE --";
 		case "command":
 			return "";
+		case "replace-char":
+			return "-- REPLACE --";
+		case "operator-pending":
+			return "-- OPERATOR --";
 	}
 }
