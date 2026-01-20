@@ -1,4 +1,4 @@
-import { GripHorizontal, LogOut, Menu, Save, X } from "lucide-react";
+import { ChevronDown, GripHorizontal, LogOut, Menu, Save, X } from "lucide-react";
 import {
 	forwardRef,
 	useCallback,
@@ -7,6 +7,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Highlight, themes, type Language } from "prism-react-renderer";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -15,6 +16,13 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+	Select,
+	SelectContentNoPortal,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
 	createInitialState,
@@ -23,6 +31,29 @@ import {
 	type VimState,
 } from "@/lib/vimEngine";
 import { type Theme, defaultDarkTheme } from "@/lib/themes";
+
+// Supported languages for syntax highlighting
+const SUPPORTED_LANGUAGES: { value: Language | "plaintext"; label: string }[] = [
+	{ value: "plaintext", label: "Plain Text" },
+	{ value: "javascript", label: "JavaScript" },
+	{ value: "typescript", label: "TypeScript" },
+	{ value: "jsx", label: "JSX" },
+	{ value: "tsx", label: "TSX" },
+	{ value: "python", label: "Python" },
+	{ value: "css", label: "CSS" },
+	{ value: "html", label: "HTML" },
+	{ value: "json", label: "JSON" },
+	{ value: "markdown", label: "Markdown" },
+	{ value: "bash", label: "Bash" },
+	{ value: "sql", label: "SQL" },
+	{ value: "go", label: "Go" },
+	{ value: "rust", label: "Rust" },
+	{ value: "java", label: "Java" },
+	{ value: "c", label: "C" },
+	{ value: "cpp", label: "C++" },
+	{ value: "yaml", label: "YAML" },
+	{ value: "graphql", label: "GraphQL" },
+];
 
 export interface VimputEditorRef {
 	requestClose: () => void;
@@ -36,6 +67,8 @@ interface VimputEditorProps {
 	theme?: Theme;
 	startInInsertMode?: boolean;
 	inputLabel?: string;
+	initialLanguage?: string;
+	onLanguageChange?: (language: string) => void;
 }
 
 interface Position {
@@ -58,6 +91,8 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			theme = defaultDarkTheme,
 			startInInsertMode = false,
 			inputLabel,
+			initialLanguage = "plaintext",
+			onLanguageChange,
 		},
 		ref,
 	) {
@@ -76,6 +111,14 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 	const [cursorVisible, setCursorVisible] = useState(true);
 	const [lastSavedText, setLastSavedText] = useState(initialText);
 	const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+	const [selectedLanguage, setSelectedLanguage] = useState<Language | "plaintext">(
+		initialLanguage as Language | "plaintext"
+	);
+
+	const handleLanguageChange = useCallback((language: string) => {
+		setSelectedLanguage(language as Language | "plaintext");
+		onLanguageChange?.(language);
+	}, [onLanguageChange]);
 
 	const editorRef = useRef<HTMLDivElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -406,115 +449,45 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 
 					{/* Editor content */}
 					<div className="flex-1 pl-3 pr-4 py-1 relative">
-						{lines.map((line, lineIndex) => (
-							<div
-								key={lineIndex}
-								className="whitespace-pre"
-								style={{ lineHeight: "1.5em" }}
+						{selectedLanguage === "plaintext" ? (
+							// Plain text rendering (no highlighting)
+							lines.map((line, lineIndex) => (
+								<div
+									key={lineIndex}
+									className="whitespace-pre"
+									style={{ lineHeight: "1.5em" }}
+								>
+									{renderLineWithCursor(line, lineIndex, vimState, colors, cursorVisible)}
+								</div>
+							))
+						) : (
+							// Syntax highlighted rendering
+							<Highlight
+								theme={themes.vsDark}
+								code={vimState.text}
+								language={selectedLanguage}
 							>
-								{line.split("").map((char, charIndex) => {
-									const isCursor =
-										lineIndex === vimState.cursor.line &&
-										charIndex === vimState.cursor.column;
-
-								const isVisualSelected =
-									vimState.mode === "visual" &&
-									vimState.visualStart &&
-									isInVisualSelection(
-										lineIndex,
-										charIndex,
-										vimState.visualStart,
-										vimState.cursor,
-									);
-
-								const isVisualLineSelected =
-									vimState.mode === "visual-line" &&
-									vimState.visualStart &&
-									isInVisualLineSelection(
-										lineIndex,
-										vimState.visualStart.line,
-										vimState.cursor.line,
-									);
-
-									const style: React.CSSProperties = {};
-									if (isCursor && vimState.mode === "insert") {
-										// Insert mode: render "|" cursor before the character
-										return (
-											<span key={charIndex} className="relative">
-												<span
-													style={{
-														color: colors.editorText,
-														position: "absolute",
-														left: 0,
-														opacity: cursorVisible ? 1 : 0,
-													}}
-												>
-													|
-												</span>
-												<span>{char}</span>
-											</span>
-										);
-									}
-									if (isCursor && cursorVisible) {
-										style.backgroundColor = colors.cursorBackground;
-										style.color = colors.cursorText;
-									}
-								if (isVisualSelected || isVisualLineSelected) {
-									style.backgroundColor = colors.visualSelection;
-								}
-
-									return (
-										<span key={charIndex} style={style}>
-											{char}
-										</span>
-									);
-								})}
-								{/* Visual-line selection for empty lines */}
-								{line.length === 0 &&
-									vimState.mode === "visual-line" &&
-									vimState.visualStart &&
-									isInVisualLineSelection(
-										lineIndex,
-										vimState.visualStart.line,
-										vimState.cursor.line,
-									) &&
-									lineIndex !== vimState.cursor.line && (
-										<span
-											className="inline-block"
-											style={{
-												backgroundColor: colors.visualSelection,
-												width: "0.5rem",
-											}}
-										>
-											{"\u00A0"}
-										</span>
-									)}
-								{/* Cursor at end of line or empty line */}
-								{(line.length === 0 ||
-									(lineIndex === vimState.cursor.line &&
-										vimState.cursor.column >= line.length)) &&
-									lineIndex === vimState.cursor.line && (
-										<span
-											className="inline-block"
-											style={
-												vimState.mode === "insert"
-													? {
-															color: colors.editorText,
-															opacity: cursorVisible ? 1 : 0,
-														}
-													: {
-															backgroundColor: cursorVisible
-																? colors.cursorBackground
-																: "transparent",
-															width: "0.5rem",
-														}
-											}
-										>
-											{vimState.mode === "insert" ? "|" : "\u00A0"}
-										</span>
-									)}
-							</div>
-						))}
+								{({ tokens: prismTokens }) => (
+									<>
+										{prismTokens.map((lineTokens, lineIndex) => (
+											<div
+												key={lineIndex}
+												className="whitespace-pre"
+												style={{ lineHeight: "1.5em" }}
+											>
+												{renderHighlightedLine(
+													lineTokens,
+													lineIndex,
+													vimState,
+													colors,
+													cursorVisible,
+												)}
+											</div>
+										))}
+									</>
+								)}
+							</Highlight>
+						)}
 					</div>
 				</div>
 			</div>
@@ -543,6 +516,40 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 					<span>
 						Ln {vimState.cursor.line + 1}, Col {vimState.cursor.column + 1}
 					</span>
+					<Select
+						value={selectedLanguage}
+						onValueChange={handleLanguageChange}
+					>
+						<SelectTrigger
+							className="h-6 w-auto min-w-[100px] gap-1 border-0 bg-transparent px-2 py-0 text-xs focus:ring-0 focus:ring-offset-0"
+							style={{ color: colors.statusText }}
+							onKeyDown={(e) => e.stopPropagation()}
+						>
+							<SelectValue />
+							<ChevronDown className="h-3 w-3 opacity-50" />
+						</SelectTrigger>
+						<SelectContentNoPortal
+							side="top"
+							align="end"
+							className="max-h-[200px]"
+							style={{
+								backgroundColor: colors.headerBackground,
+								borderColor: colors.border,
+							}}
+							onKeyDown={(e) => e.stopPropagation()}
+						>
+							{SUPPORTED_LANGUAGES.map((lang) => (
+								<SelectItem
+									key={lang.value}
+									value={lang.value}
+									className="text-xs cursor-pointer"
+									style={{ color: colors.headerText }}
+								>
+									{lang.label}
+								</SelectItem>
+							))}
+						</SelectContentNoPortal>
+					</Select>
 				</div>
 			</div>
 
@@ -631,6 +638,167 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 	);
 },
 );
+
+// Helper function to render a character with cursor and selection styling
+function renderChar(
+	char: string,
+	charIndex: number,
+	lineIndex: number,
+	vimState: VimState,
+	colors: Theme["colors"],
+	cursorVisible: boolean,
+	tokenStyle?: React.CSSProperties,
+): React.ReactNode {
+	const isCursor =
+		lineIndex === vimState.cursor.line && charIndex === vimState.cursor.column;
+
+	const isVisualSelected =
+		vimState.mode === "visual" &&
+		vimState.visualStart &&
+		isInVisualSelection(lineIndex, charIndex, vimState.visualStart, vimState.cursor);
+
+	const isVisualLineSelected =
+		vimState.mode === "visual-line" &&
+		vimState.visualStart &&
+		isInVisualLineSelection(lineIndex, vimState.visualStart.line, vimState.cursor.line);
+
+	const style: React.CSSProperties = { ...tokenStyle };
+
+	if (isCursor && vimState.mode === "insert") {
+		return (
+			<span key={charIndex} className="relative">
+				<span
+					style={{
+						color: colors.editorText,
+						position: "absolute",
+						left: 0,
+						opacity: cursorVisible ? 1 : 0,
+					}}
+				>
+					|
+				</span>
+				<span style={tokenStyle}>{char}</span>
+			</span>
+		);
+	}
+
+	if (isCursor && cursorVisible) {
+		style.backgroundColor = colors.cursorBackground;
+		style.color = colors.cursorText;
+	}
+
+	if (isVisualSelected || isVisualLineSelected) {
+		style.backgroundColor = colors.visualSelection;
+	}
+
+	return (
+		<span key={charIndex} style={style}>
+			{char}
+		</span>
+	);
+}
+
+// Render cursor at end of line
+function renderEndOfLineCursor(
+	line: string,
+	lineIndex: number,
+	vimState: VimState,
+	colors: Theme["colors"],
+	cursorVisible: boolean,
+): React.ReactNode {
+	const isVisualLineEmpty =
+		line.length === 0 &&
+		vimState.mode === "visual-line" &&
+		vimState.visualStart &&
+		isInVisualLineSelection(lineIndex, vimState.visualStart.line, vimState.cursor.line) &&
+		lineIndex !== vimState.cursor.line;
+
+	const isCursorAtEnd =
+		(line.length === 0 || (lineIndex === vimState.cursor.line && vimState.cursor.column >= line.length)) &&
+		lineIndex === vimState.cursor.line;
+
+	return (
+		<>
+			{isVisualLineEmpty && (
+				<span
+					className="inline-block"
+					style={{
+						backgroundColor: colors.visualSelection,
+						width: "0.5rem",
+					}}
+				>
+					{"\u00A0"}
+				</span>
+			)}
+			{isCursorAtEnd && (
+				<span
+					className="inline-block"
+					style={
+						vimState.mode === "insert"
+							? {
+									color: colors.editorText,
+									opacity: cursorVisible ? 1 : 0,
+								}
+							: {
+									backgroundColor: cursorVisible ? colors.cursorBackground : "transparent",
+									width: "0.5rem",
+								}
+					}
+				>
+					{vimState.mode === "insert" ? "|" : "\u00A0"}
+				</span>
+			)}
+		</>
+	);
+}
+
+// Render plain text line (no syntax highlighting)
+function renderLineWithCursor(
+	line: string,
+	lineIndex: number,
+	vimState: VimState,
+	colors: Theme["colors"],
+	cursorVisible: boolean,
+): React.ReactNode {
+	return (
+		<>
+			{line.split("").map((char, charIndex) =>
+				renderChar(char, charIndex, lineIndex, vimState, colors, cursorVisible),
+			)}
+			{renderEndOfLineCursor(line, lineIndex, vimState, colors, cursorVisible)}
+		</>
+	);
+}
+
+// Render syntax highlighted line
+function renderHighlightedLine(
+	lineTokens: { content: string; style?: React.CSSProperties }[],
+	lineIndex: number,
+	vimState: VimState,
+	colors: Theme["colors"],
+	cursorVisible: boolean,
+): React.ReactNode {
+	let charIndex = 0;
+	const elements: React.ReactNode[] = [];
+
+	for (const token of lineTokens) {
+		for (const char of token.content) {
+			// Skip newline characters
+			if (char === "\n") continue;
+			
+			elements.push(
+				renderChar(char, charIndex, lineIndex, vimState, colors, cursorVisible, token.style),
+			);
+			charIndex++;
+		}
+	}
+
+	// Calculate actual line content (without newlines)
+	const lineContent = lineTokens.map((t) => t.content.replace(/\n/g, "")).join("");
+	elements.push(renderEndOfLineCursor(lineContent, lineIndex, vimState, colors, cursorVisible));
+
+	return elements;
+}
 
 function isInVisualSelection(
 	line: number,
