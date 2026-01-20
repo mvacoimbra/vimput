@@ -25,7 +25,9 @@
 				"useSemanticElements": "off",
 				"useFocusableInteractive": "off",
 				"useKeyWithClickEvents": "off",
-				"useAriaPropsForRole": "off"
+				"useAriaPropsForRole": "off",
+				"noStaticElementInteractions": "off",
+				"noSvgWithoutTitle": "off"
 			},
 			"security": {
 				"noDangerouslySetInnerHtml": "off"
