@@ -10,11 +10,10 @@ export default defineConfig({
 		version: "1.0.0",
 		permissions: ["contextMenus", "storage", "activeTab"],
 		icons: {
-			16: "icon/16.png",
-			32: "icon/32.png",
-			48: "icon/48.png",
-			96: "icon/96.png",
-			128: "icon/128.png",
+			16: "icons/png/icon-16.png",
+			32: "icons/png/icon-32.png",
+			48: "icons/png/icon-48.png",
+			128: "icons/png/icon-128.png",
 		},
 	},
 });
