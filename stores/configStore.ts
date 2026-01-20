@@ -11,11 +11,13 @@ export interface ConfigState {
 	customColors: Partial<ThemeColors>;
 	fontSize: number;
 	openOnClick: boolean;
+	syntaxLanguage: string;
 	setThemeId: (themeId: string) => void;
 	setCustomColors: (colors: Partial<ThemeColors>) => void;
 	resetCustomColors: () => void;
 	setFontSize: (size: number) => void;
 	setOpenOnClick: (enabled: boolean) => void;
+	setSyntaxLanguage: (language: string) => void;
 	getActiveTheme: () => Theme;
 	loadFromStorage: () => Promise<void>;
 	saveToStorage: () => Promise<void>;
@@ -26,6 +28,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 	customColors: {},
 	fontSize: 14,
 	openOnClick: false,
+	syntaxLanguage: "plaintext",
 
 	setThemeId: (themeId: string) => {
 		set({ themeId, customColors: {} });
@@ -49,6 +52,11 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
 	setOpenOnClick: (enabled: boolean) => {
 		set({ openOnClick: enabled });
+		get().saveToStorage();
+	},
+
+	setSyntaxLanguage: (language: string) => {
+		set({ syntaxLanguage: language });
 		get().saveToStorage();
 	},
 
@@ -78,12 +86,14 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				"customColors",
 				"fontSize",
 				"openOnClick",
+				"syntaxLanguage",
 			]);
 			set({
 				themeId: (result.themeId as string) || "default-dark",
 				customColors: (result.customColors as Partial<ThemeColors>) || {},
 				fontSize: (result.fontSize as number) || 14,
 				openOnClick: (result.openOnClick as boolean) ?? false,
+				syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
 			});
 		} catch (error) {
 			console.error("Failed to load config from storage:", error);
@@ -92,12 +102,13 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
 	saveToStorage: async () => {
 		try {
-			const { themeId, customColors, fontSize, openOnClick } = get();
+			const { themeId, customColors, fontSize, openOnClick, syntaxLanguage } = get();
 			await browser.storage.sync.set({
 				themeId,
 				customColors,
 				fontSize,
 				openOnClick,
+				syntaxLanguage,
 			});
 		} catch (error) {
 			console.error("Failed to save config to storage:", error);
