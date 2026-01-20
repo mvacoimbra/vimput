@@ -1,22 +1,44 @@
 import { create } from "zustand";
-
-export type Theme = "dark" | "light" | "system";
+import {
+	type Theme,
+	type ThemeColors,
+	defaultDarkTheme,
+	getThemeById,
+} from "@/lib/themes";
 
 export interface ConfigState {
-	theme: Theme;
+	themeId: string;
+	customColors: Partial<ThemeColors>;
 	fontSize: number;
-	setTheme: (theme: Theme) => void;
+	openOnClick: boolean;
+	setThemeId: (themeId: string) => void;
+	setCustomColors: (colors: Partial<ThemeColors>) => void;
+	resetCustomColors: () => void;
 	setFontSize: (size: number) => void;
+	setOpenOnClick: (enabled: boolean) => void;
+	getActiveTheme: () => Theme;
 	loadFromStorage: () => Promise<void>;
 	saveToStorage: () => Promise<void>;
 }
 
 export const useConfigStore = create<ConfigState>((set, get) => ({
-	theme: "dark",
+	themeId: "default-dark",
+	customColors: {},
 	fontSize: 14,
+	openOnClick: false,
 
-	setTheme: (theme: Theme) => {
-		set({ theme });
+	setThemeId: (themeId: string) => {
+		set({ themeId, customColors: {} });
+		get().saveToStorage();
+	},
+
+	setCustomColors: (colors: Partial<ThemeColors>) => {
+		set({ customColors: colors });
+		get().saveToStorage();
+	},
+
+	resetCustomColors: () => {
+		set({ customColors: {} });
 		get().saveToStorage();
 	},
 
@@ -25,12 +47,43 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 		get().saveToStorage();
 	},
 
+	setOpenOnClick: (enabled: boolean) => {
+		set({ openOnClick: enabled });
+		get().saveToStorage();
+	},
+
+	getActiveTheme: () => {
+		const { themeId, customColors } = get();
+		const baseTheme = getThemeById(themeId) || defaultDarkTheme;
+
+		if (Object.keys(customColors).length === 0) {
+			return baseTheme;
+		}
+
+		return {
+			...baseTheme,
+			id: "custom",
+			name: `${baseTheme.name} (Custom)`,
+			colors: {
+				...baseTheme.colors,
+				...customColors,
+			},
+		};
+	},
+
 	loadFromStorage: async () => {
 		try {
-			const result = await browser.storage.sync.get(["theme", "fontSize"]);
+			const result = await browser.storage.sync.get([
+				"themeId",
+				"customColors",
+				"fontSize",
+				"openOnClick",
+			]);
 			set({
-				theme: (result.theme as Theme) || "dark",
-				fontSize: result.fontSize || 14,
+				themeId: (result.themeId as string) || "default-dark",
+				customColors: (result.customColors as Partial<ThemeColors>) || {},
+				fontSize: (result.fontSize as number) || 14,
+				openOnClick: (result.openOnClick as boolean) ?? false,
 			});
 		} catch (error) {
 			console.error("Failed to load config from storage:", error);
@@ -39,8 +92,13 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
 	saveToStorage: async () => {
 		try {
-			const { theme, fontSize } = get();
-			await browser.storage.sync.set({ theme, fontSize });
+			const { themeId, customColors, fontSize, openOnClick } = get();
+			await browser.storage.sync.set({
+				themeId,
+				customColors,
+				fontSize,
+				openOnClick,
+			});
 		} catch (error) {
 			console.error("Failed to save config to storage:", error);
 		}
