@@ -114,6 +114,63 @@ function setElementText(element: EditableElement, text: string): void {
 	}
 }
 
+function getElementLabel(element: EditableElement): string | undefined {
+	// Check for associated label via 'for' attribute
+	if (element.id) {
+		const label = document.querySelector(`label[for="${element.id}"]`);
+		if (label?.textContent?.trim()) {
+			return label.textContent.trim();
+		}
+	}
+
+	// Check for parent label element
+	const parentLabel = element.closest("label");
+	if (parentLabel?.textContent?.trim()) {
+		// Get only the label text, not the input's value
+		const labelText = Array.from(parentLabel.childNodes)
+			.filter((node) => node.nodeType === Node.TEXT_NODE)
+			.map((node) => node.textContent?.trim())
+			.filter(Boolean)
+			.join(" ");
+		if (labelText) {
+			return labelText;
+		}
+	}
+
+	// Check aria-label
+	const ariaLabel = element.getAttribute("aria-label");
+	if (ariaLabel?.trim()) {
+		return ariaLabel.trim();
+	}
+
+	// Check aria-labelledby
+	const ariaLabelledBy = element.getAttribute("aria-labelledby");
+	if (ariaLabelledBy) {
+		const labelElement = document.getElementById(ariaLabelledBy);
+		if (labelElement?.textContent?.trim()) {
+			return labelElement.textContent.trim();
+		}
+	}
+
+	// Check placeholder as fallback
+	if (
+		element instanceof HTMLInputElement ||
+		element instanceof HTMLTextAreaElement
+	) {
+		if (element.placeholder?.trim()) {
+			return element.placeholder.trim();
+		}
+	}
+
+	// Check title attribute
+	const title = element.getAttribute("title");
+	if (title?.trim()) {
+		return title.trim();
+	}
+
+	return undefined;
+}
+
 export default defineContentScript({
 	matches: ["<all_urls>"],
 	cssInjectionMode: "ui",
@@ -305,6 +362,9 @@ async function openEditor(startInInsertMode = false) {
 	// Create ref for the editor
 	editorRef = createRef<VimputEditorRef>();
 
+	// Get the label for the input element
+	const inputLabel = getElementLabel(targetElement);
+
 	// Render React component
 	editorRoot = ReactDOM.createRoot(container);
 	editorRoot.render(
@@ -314,6 +374,7 @@ async function openEditor(startInInsertMode = false) {
 			theme={config.theme}
 			fontSize={config.fontSize}
 			startInInsertMode={shouldStartInInsertMode}
+			inputLabel={inputLabel}
 			onSave={(text) => {
 				if (targetElement) {
 					setElementText(targetElement, text);
