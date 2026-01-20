@@ -8,13 +8,15 @@ import {
 	processKey,
 	type VimState,
 } from "@/lib/vimEngine";
+import { type Theme, defaultDarkTheme } from "@/lib/themes";
 
 interface VimputEditorProps {
 	initialText: string;
 	onSave: (text: string) => void;
 	onClose: () => void;
 	fontSize?: number;
-	theme?: "dark" | "light";
+	theme?: Theme;
+	startInInsertMode?: boolean;
 }
 
 interface Position {
@@ -32,11 +34,16 @@ export function VimputEditor({
 	onSave,
 	onClose,
 	fontSize = 14,
-	theme = "dark",
+	theme = defaultDarkTheme,
+	startInInsertMode = false,
 }: VimputEditorProps) {
-	const [vimState, setVimState] = useState<VimState>(() =>
-		createInitialState(initialText),
-	);
+	const [vimState, setVimState] = useState<VimState>(() => {
+		const state = createInitialState(initialText);
+		if (startInInsertMode) {
+			return { ...state, mode: "insert" as const };
+		}
+		return state;
+	});
 	const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
 	const [size, setSize] = useState<Size>({ width: 700, height: 450 });
 	const [isDragging, setIsDragging] = useState(false);
@@ -45,6 +52,8 @@ export function VimputEditor({
 
 	const editorRef = useRef<HTMLDivElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
+
+	const colors = theme.colors;
 
 	// Center the editor on mount
 	useEffect(() => {
@@ -130,10 +139,23 @@ export function VimputEditor({
 		}
 	}, [isResizing, handleResize, handleResizeEnd]);
 
+	const handleSaveAndClose = useCallback(() => {
+		onSave(vimState.text);
+		onClose();
+	}, [vimState.text, onSave, onClose]);
+
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent) => {
 			// Don't capture keys while dragging/resizing
 			if (isDragging || isResizing) return;
+
+			// Handle Cmd/Ctrl + Shift + S to save and close
+			if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "s") {
+				e.preventDefault();
+				e.stopPropagation();
+				handleSaveAndClose();
+				return;
+			}
 
 			// Allow some browser shortcuts
 			if (e.metaKey || e.ctrlKey) {
@@ -174,7 +196,7 @@ export function VimputEditor({
 				}
 			}
 		},
-		[vimState, onSave, onClose, isDragging, isResizing],
+		[vimState, onSave, onClose, isDragging, isResizing, handleSaveAndClose],
 	);
 
 	useEffect(() => {
@@ -192,14 +214,11 @@ export function VimputEditor({
 	const lines = vimState.text.split("\n");
 	const lineNumbers = lines.map((_, i) => i + 1);
 
-	const isDark = theme === "dark";
-
 	return (
 		<div
 			ref={containerRef}
 			className={cn(
-				"absolute rounded-lg shadow-2xl border overflow-hidden flex flex-col",
-				isDark ? "bg-zinc-900 border-zinc-700" : "bg-white border-zinc-300",
+				"absolute rounded-lg shadow-2xl overflow-hidden flex flex-col",
 				(isDragging || isResizing) && "select-none",
 			)}
 			style={{
@@ -210,30 +229,31 @@ export function VimputEditor({
 				pointerEvents: "auto",
 				fontFamily:
 					'"JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+				backgroundColor: colors.background,
+				borderWidth: "1px",
+				borderStyle: "solid",
+				borderColor: colors.border,
 			}}
 		>
 			{/* Title bar - draggable */}
 			<div
-				className={cn(
-					"flex items-center justify-between px-3 py-2 cursor-move border-b",
-					isDark
-						? "bg-zinc-800 border-zinc-700"
-						: "bg-zinc-100 border-zinc-300",
-				)}
+				className="flex items-center justify-between px-3 py-2 cursor-move"
+				style={{
+					backgroundColor: colors.headerBackground,
+					borderBottomWidth: "1px",
+					borderBottomStyle: "solid",
+					borderBottomColor: colors.border,
+				}}
 				onMouseDown={handleDragStart}
 			>
 				<div className="flex items-center gap-2">
 					<GripHorizontal
-						className={cn(
-							"h-4 w-4",
-							isDark ? "text-zinc-500" : "text-zinc-400",
-						)}
+						className="h-4 w-4"
+						style={{ color: colors.headerMutedText }}
 					/>
 					<span
-						className={cn(
-							"text-sm font-medium",
-							isDark ? "text-zinc-100" : "text-zinc-900",
-						)}
+						className="text-sm font-medium"
+						style={{ color: colors.headerText }}
 					>
 						Vimput Editor
 					</span>
@@ -243,12 +263,10 @@ export function VimputEditor({
 						variant="ghost"
 						size="sm"
 						onClick={() => onSave(vimState.text)}
-						className={cn(
-							"h-7 px-2",
-							isDark
-								? "hover:bg-zinc-700 text-zinc-300"
-								: "hover:bg-zinc-200 text-zinc-700",
-						)}
+						className="h-7 px-2"
+						style={{
+							color: colors.statusText,
+						}}
 					>
 						<Save className="h-3.5 w-3.5 mr-1" />
 						<span className="text-xs">Save</span>
@@ -257,10 +275,8 @@ export function VimputEditor({
 						variant="ghost"
 						size="sm"
 						onClick={onClose}
-						className={cn(
-							"h-7 w-7 p-0 hover:bg-red-500 hover:text-white",
-							isDark ? "text-zinc-400" : "text-zinc-600",
-						)}
+						className="h-7 w-7 p-0"
+						style={{ color: colors.headerMutedText }}
 					>
 						<X className="h-4 w-4" />
 					</Button>
@@ -270,21 +286,25 @@ export function VimputEditor({
 			{/* Editor content */}
 			<div
 				ref={editorRef}
-				className={cn(
-					"flex-1 overflow-auto font-mono outline-none",
-					isDark ? "bg-zinc-950 text-zinc-100" : "bg-zinc-50 text-zinc-900",
-				)}
-				style={{ fontSize: `${fontSize}px`, lineHeight: "1.5" }}
+				className="flex-1 overflow-auto font-mono outline-none"
+				style={{
+					fontSize: `${fontSize}px`,
+					lineHeight: "1.5",
+					backgroundColor: colors.editorBackground,
+					color: colors.editorText,
+				}}
 			>
 				<div className="flex min-h-full">
 					{/* Line numbers */}
 					<div
-						className={cn(
-							"flex-shrink-0 text-right pr-3 pl-2 select-none border-r sticky left-0",
-							isDark
-								? "text-zinc-500 bg-zinc-900 border-zinc-700"
-								: "text-zinc-400 bg-zinc-100 border-zinc-300",
-						)}
+						className="flex-shrink-0 text-right pr-3 pl-2 select-none sticky left-0"
+						style={{
+							color: colors.lineNumberText,
+							backgroundColor: colors.lineNumberBackground,
+							borderRightWidth: "1px",
+							borderRightStyle: "solid",
+							borderRightColor: colors.lineNumberBorder,
+						}}
 					>
 						{lineNumbers.map((num) => (
 							<div key={num} style={{ lineHeight: "1.5em" }}>
@@ -316,20 +336,19 @@ export function VimputEditor({
 											vimState.cursor,
 										);
 
+									const style: React.CSSProperties = {};
+									if (isCursor && vimState.mode === "insert") {
+										style.borderLeft = `2px solid ${colors.cursorInsertBorder}`;
+									} else if (isCursor) {
+										style.backgroundColor = colors.cursorBackground;
+										style.color = colors.cursorText;
+									}
+									if (isVisualSelected) {
+										style.backgroundColor = colors.visualSelection;
+									}
+
 									return (
-										<span
-											key={charIndex}
-											className={cn(
-												isCursor && vimState.mode === "insert"
-													? "border-l-2 border-zinc-100"
-													: isCursor
-														? isDark
-															? "bg-zinc-100 text-zinc-900"
-															: "bg-zinc-800 text-zinc-100"
-														: "",
-												isVisualSelected && "bg-purple-500/40",
-											)}
-										>
+										<span key={charIndex} style={style}>
 											{char}
 										</span>
 									);
@@ -340,14 +359,18 @@ export function VimputEditor({
 										vimState.cursor.column >= line.length)) &&
 									lineIndex === vimState.cursor.line && (
 										<span
-											className={cn(
-												"inline-block",
+											className="inline-block"
+											style={
 												vimState.mode === "insert"
-													? "border-l-2 border-zinc-100 w-0"
-													: isDark
-														? "bg-zinc-100 w-2"
-														: "bg-zinc-800 w-2",
-											)}
+													? {
+															borderLeft: `2px solid ${colors.cursorInsertBorder}`,
+															width: 0,
+														}
+													: {
+															backgroundColor: colors.cursorBackground,
+															width: "0.5rem",
+														}
+											}
 										>
 											{vimState.mode !== "insert" && "\u00A0"}
 										</span>
@@ -360,16 +383,20 @@ export function VimputEditor({
 
 			{/* Status bar */}
 			<div
-				className={cn(
-					"flex items-center justify-between px-3 py-1 border-t font-mono text-sm",
-					isDark
-						? "bg-zinc-800 border-zinc-700 text-zinc-300"
-						: "bg-zinc-100 border-zinc-300 text-zinc-700",
-				)}
+				className="flex items-center justify-between px-3 py-1 font-mono text-sm"
+				style={{
+					backgroundColor: colors.statusBackground,
+					borderTopWidth: "1px",
+					borderTopStyle: "solid",
+					borderTopColor: colors.border,
+					color: colors.statusText,
+				}}
 			>
 				<div className="flex items-center gap-3">
 					{vimState.mode === "command" ? (
-						<span className="text-yellow-500">{vimState.commandBuffer}</span>
+						<span style={{ color: colors.commandText }}>
+							{vimState.commandBuffer}
+						</span>
 					) : (
 						<span>{getModeDisplay(vimState.mode)}</span>
 					)}
@@ -383,14 +410,12 @@ export function VimputEditor({
 
 			{/* Resize handle */}
 			<div
-				className={cn(
-					"absolute bottom-0 right-0 w-4 h-4 cursor-se-resize",
-					isDark ? "hover:bg-zinc-700" : "hover:bg-zinc-200",
-				)}
+				className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
 				onMouseDown={handleResizeStart}
 			>
 				<svg
-					className={cn("w-4 h-4", isDark ? "text-zinc-600" : "text-zinc-400")}
+					className="w-4 h-4"
+					style={{ color: colors.headerMutedText }}
 					viewBox="0 0 16 16"
 					fill="currentColor"
 				>
