@@ -1,4 +1,4 @@
-export type VimMode = "normal" | "insert" | "visual" | "command";
+export type VimMode = "normal" | "insert" | "visual" | "visual-line" | "command";
 
 export interface CursorPosition {
 	line: number;
@@ -85,6 +85,54 @@ export function processKey(state: VimState, key: string): VimState {
 			};
 		}
 
+		// Arrow keys for cursor movement in insert mode
+		if (key === "ArrowLeft") {
+			return {
+				...state,
+				cursor: {
+					...state.cursor,
+					column: Math.max(0, state.cursor.column - 1),
+				},
+			};
+		}
+		if (key === "ArrowRight") {
+			return {
+				...state,
+				cursor: {
+					...state.cursor,
+					column: Math.min(currentLine.length, state.cursor.column + 1),
+				},
+			};
+		}
+		if (key === "ArrowUp") {
+			if (state.cursor.line > 0) {
+				const newLine = state.cursor.line - 1;
+				const targetLine = lines[newLine] || "";
+				return {
+					...state,
+					cursor: {
+						line: newLine,
+						column: Math.min(state.cursor.column, targetLine.length),
+					},
+				};
+			}
+			return state;
+		}
+		if (key === "ArrowDown") {
+			if (state.cursor.line < lines.length - 1) {
+				const newLine = state.cursor.line + 1;
+				const targetLine = lines[newLine] || "";
+				return {
+					...state,
+					cursor: {
+						line: newLine,
+						column: Math.min(state.cursor.column, targetLine.length),
+					},
+				};
+			}
+			return state;
+		}
+
 		if (key === "Backspace") {
 			if (state.cursor.column > 0) {
 				const newLine =
@@ -161,6 +209,28 @@ export function processKey(state: VimState, key: string): VimState {
 		return { ...state, ...handleNormalMovement(state, key) };
 	}
 
+	// Handle visual-line mode
+	if (state.mode === "visual-line") {
+		if (key === "Escape") {
+			return { ...state, mode: "normal", visualStart: null };
+		}
+		if (key === "y") {
+			const yanked = getVisualLineSelection(state);
+			return {
+				...state,
+				mode: "normal",
+				yankBuffer: yanked,
+				isLineYank: true,
+				visualStart: null,
+			};
+		}
+		if (key === "d" || key === "x") {
+			return deleteVisualLineSelection(state);
+		}
+		// Movement in visual-line mode
+		return { ...state, ...handleNormalMovement(state, key) };
+	}
+
 	// Handle normal mode
 	if (state.mode === "normal") {
 		// Enter command mode
@@ -214,6 +284,11 @@ export function processKey(state: VimState, key: string): VimState {
 		// Enter visual mode
 		if (key === "v") {
 			return { ...state, mode: "visual", visualStart: { ...state.cursor } };
+		}
+
+		// Enter visual-line mode
+		if (key === "V") {
+			return { ...state, mode: "visual-line", visualStart: { ...state.cursor } };
 		}
 
 		// Delete character
@@ -547,6 +622,50 @@ function deleteVisualSelection(state: VimState): VimState {
 	};
 }
 
+function getVisualLineSelection(state: VimState): string {
+	if (!state.visualStart) return "";
+
+	const lines = getLines(state.text);
+	const startLine = Math.min(state.visualStart.line, state.cursor.line);
+	const endLine = Math.max(state.visualStart.line, state.cursor.line);
+
+	const selectedLines = lines.slice(startLine, endLine + 1);
+	return selectedLines.join("\n");
+}
+
+function deleteVisualLineSelection(state: VimState): VimState {
+	if (!state.visualStart) return { ...state, mode: "normal" };
+
+	const lines = getLines(state.text);
+	const startLine = Math.min(state.visualStart.line, state.cursor.line);
+	const endLine = Math.max(state.visualStart.line, state.cursor.line);
+
+	const yanked = getVisualLineSelection(state);
+
+	// Delete the selected lines
+	if (lines.length === endLine - startLine + 1) {
+		// All lines are being deleted, leave one empty line
+		lines.splice(startLine, endLine - startLine + 1, "");
+	} else {
+		lines.splice(startLine, endLine - startLine + 1);
+	}
+
+	const newLine = clampLine(lines, startLine);
+
+	return {
+		...state,
+		mode: "normal",
+		text: joinLines(lines),
+		cursor: {
+			line: newLine,
+			column: clampColumn(lines[newLine] || "", 0, "normal"),
+		},
+		yankBuffer: yanked,
+		isLineYank: true,
+		visualStart: null,
+	};
+}
+
 function executeCommand(state: VimState): VimState {
 	const command = state.commandBuffer.slice(1); // Remove the ':'
 
@@ -576,6 +695,8 @@ export function getModeDisplay(mode: VimMode): string {
 			return "-- INSERT --";
 		case "visual":
 			return "-- VISUAL --";
+		case "visual-line":
+			return "-- VISUAL LINE --";
 		case "command":
 			return "";
 	}
