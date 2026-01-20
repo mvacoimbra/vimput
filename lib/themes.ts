@@ -35,17 +35,42 @@ export interface ThemeColors {
 	closeButtonHover: string;
 }
 
+// Prism theme names available in prism-react-renderer
+export type PrismThemeName =
+	| "dracula"
+	| "duotoneDark"
+	| "duotoneLight"
+	| "github"
+	| "gruvboxMaterialDark"
+	| "gruvboxMaterialLight"
+	| "jettwaveDark"
+	| "jettwaveLight"
+	| "nightOwl"
+	| "nightOwlLight"
+	| "oceanicNext"
+	| "okaidia"
+	| "oneDark"
+	| "oneLight"
+	| "palenight"
+	| "shadesOfPurple"
+	| "synthwave84"
+	| "ultramin"
+	| "vsDark"
+	| "vsLight";
+
 export interface Theme {
 	id: string;
 	name: string;
 	baseTheme: "dark" | "light";
 	colors: ThemeColors;
+	prismTheme: PrismThemeName;
 }
 
 export const defaultDarkTheme: Theme = {
 	id: "default-dark",
 	name: "Default Dark",
 	baseTheme: "dark",
+	prismTheme: "vsDark",
 	colors: {
 		background: "#18181b", // zinc-900
 		border: "#3f3f46", // zinc-700
@@ -73,6 +98,7 @@ export const defaultLightTheme: Theme = {
 	id: "default-light",
 	name: "Default Light",
 	baseTheme: "light",
+	prismTheme: "vsLight",
 	colors: {
 		background: "#ffffff", // white
 		border: "#d4d4d8", // zinc-300
@@ -100,6 +126,7 @@ export const monokaiTheme: Theme = {
 	id: "monokai",
 	name: "Monokai",
 	baseTheme: "dark",
+	prismTheme: "okaidia",
 	colors: {
 		background: "#272822",
 		border: "#49483e",
@@ -127,6 +154,7 @@ export const draculaTheme: Theme = {
 	id: "dracula",
 	name: "Dracula",
 	baseTheme: "dark",
+	prismTheme: "dracula",
 	colors: {
 		background: "#282a36",
 		border: "#44475a",
@@ -154,6 +182,7 @@ export const nordTheme: Theme = {
 	id: "nord",
 	name: "Nord",
 	baseTheme: "dark",
+	prismTheme: "nightOwl",
 	colors: {
 		background: "#2e3440",
 		border: "#3b4252",
@@ -181,6 +210,7 @@ export const gruvboxTheme: Theme = {
 	id: "gruvbox",
 	name: "Gruvbox",
 	baseTheme: "dark",
+	prismTheme: "gruvboxMaterialDark",
 	colors: {
 		background: "#282828",
 		border: "#3c3836",
@@ -226,6 +256,7 @@ export function createCustomTheme(
 		id: "custom",
 		name: name || "Custom",
 		baseTheme: baseTheme.baseTheme,
+		prismTheme: baseTheme.prismTheme,
 		colors: {
 			...baseTheme.colors,
 			...customColors,
