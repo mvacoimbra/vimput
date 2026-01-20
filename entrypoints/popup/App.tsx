@@ -1,65 +1,121 @@
 import { Keyboard, Terminal } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { BuyMeCoffee } from "@/components/BuyMeCoffee";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { getThemeById } from "@/lib/themes";
 import { useConfigStore } from "@/stores/configStore";
 
 function App() {
-	const { theme, loadFromStorage } = useConfigStore();
+	const { themeId, customColors, loadFromStorage } = useConfigStore();
 
 	useEffect(() => {
 		loadFromStorage();
 	}, [loadFromStorage]);
 
+	const activeTheme = useMemo(() => {
+		const baseTheme = getThemeById(themeId);
+		if (!baseTheme) return null;
+
+		return {
+			...baseTheme,
+			colors: {
+				...baseTheme.colors,
+				...customColors,
+			},
+		};
+	}, [themeId, customColors]);
+
 	useEffect(() => {
-		// Apply theme to document
-		if (theme === "dark") {
+		// Apply theme to document based on baseTheme
+		const baseTheme = activeTheme?.baseTheme || "dark";
+
+		if (baseTheme === "dark") {
 			document.documentElement.classList.add("dark");
-		} else if (theme === "light") {
-			document.documentElement.classList.remove("dark");
 		} else {
-			// System preference
-			const prefersDark = window.matchMedia(
-				"(prefers-color-scheme: dark)",
-			).matches;
-			if (prefersDark) {
-				document.documentElement.classList.add("dark");
-			} else {
-				document.documentElement.classList.remove("dark");
-			}
+			document.documentElement.classList.remove("dark");
 		}
-	}, [theme]);
+	}, [activeTheme]);
+
+	const colors = activeTheme?.colors;
 
 	return (
-		<div className="w-[360px] bg-background text-foreground">
+		<div
+			className="w-[360px]"
+			style={{
+				backgroundColor: colors?.background,
+				color: colors?.editorText,
+			}}
+		>
 			{/* Header */}
-			<div className="px-4 py-4 border-b">
+			<div
+				className="px-4 py-4"
+				style={{
+					backgroundColor: colors?.headerBackground,
+					borderBottomWidth: "1px",
+					borderBottomStyle: "solid",
+					borderBottomColor: colors?.border,
+				}}
+			>
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-3">
-						<div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-							<Terminal className="h-6 w-6 text-primary" />
+						<div
+							className="flex items-center justify-center w-10 h-10 rounded-lg"
+							style={{ backgroundColor: `${colors?.statusText}20` }}
+						>
+							<Terminal
+								className="h-6 w-6"
+								style={{ color: colors?.statusText }}
+							/>
 						</div>
 						<div>
-							<h1 className="text-xl font-bold tracking-tight">Vimput</h1>
-							<p className="text-xs text-muted-foreground">
+							<h1
+								className="text-xl font-bold tracking-tight"
+								style={{ color: colors?.headerText }}
+							>
+								Vimput
+							</h1>
+							<p className="text-xs" style={{ color: colors?.headerMutedText }}>
 								Vim-powered input editing
 							</p>
 						</div>
 					</div>
-					<Badge variant="secondary" className="text-xs">
+					<Badge
+						variant="secondary"
+						className="text-xs"
+						style={{
+							backgroundColor: colors?.buttonHover,
+							color: colors?.statusText,
+						}}
+					>
 						v1.0.0
 					</Badge>
 				</div>
 			</div>
 
 			{/* Quick Tips */}
-			<div className="px-4 py-3 bg-muted/50 border-b">
+			<div
+				className="px-4 py-3"
+				style={{
+					backgroundColor: colors?.lineNumberBackground,
+					borderBottomWidth: "1px",
+					borderBottomStyle: "solid",
+					borderBottomColor: colors?.border,
+				}}
+			>
 				<div className="flex items-start gap-2">
-					<Keyboard className="h-4 w-4 text-muted-foreground mt-0.5" />
-					<div className="text-xs text-muted-foreground">
-						<p className="font-medium text-foreground mb-1">How to use</p>
+					<Keyboard
+						className="h-4 w-4 mt-0.5"
+						style={{ color: colors?.headerMutedText }}
+					/>
+					<div className="text-xs" style={{ color: colors?.headerMutedText }}>
+						<p
+							className="font-medium mb-1"
+							style={{ color: colors?.headerText }}
+						>
+							How to use
+						</p>
 						<p>
 							Right-click on any text input and select "Edit with Vimput" to
 							open the editor.
@@ -73,18 +129,24 @@ function App() {
 				<SettingsPanel />
 			</div>
 
-			<Separator />
+			<Separator style={{ backgroundColor: colors?.border }} />
 
 			{/* Footer with Buy Me a Coffee */}
 			<div className="p-4 space-y-3">
 				<div className="text-center">
-					<p className="text-xs text-muted-foreground mb-3">
+					<p
+						className="text-xs mb-3"
+						style={{ color: colors?.headerMutedText }}
+					>
 						Enjoying Vimput? Support the development!
 					</p>
-					<BuyMeCoffee username="yourusername" />
+					<BuyMeCoffee username="mvacoimbra" />
 				</div>
 
-				<div className="text-center text-xs text-muted-foreground pt-2">
+				<div
+					className="text-center text-xs pt-2"
+					style={{ color: colors?.headerMutedText }}
+				>
 					<p>
 						Made with <span className="text-red-500">♥</span> for Vim
 						enthusiasts
