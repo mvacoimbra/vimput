@@ -20,6 +20,7 @@ export default defineConfig({
 				id: "vimput@extension",
 				data_collection_permissions: {
 					data_collection_enabled: false,
+					required: ["none"],
 				},
 			},
 		},
