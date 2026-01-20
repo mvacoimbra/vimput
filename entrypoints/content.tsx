@@ -236,6 +236,7 @@ interface EditorConfig {
 	theme: Theme;
 	fontSize: number;
 	openOnClick: boolean;
+	syntaxLanguage: string;
 }
 
 async function getConfig(): Promise<EditorConfig> {
@@ -245,6 +246,7 @@ async function getConfig(): Promise<EditorConfig> {
 			"customColors",
 			"fontSize",
 			"openOnClick",
+			"syntaxLanguage",
 		]);
 
 		const themeId = (result.themeId as string) || "default-dark";
@@ -265,9 +267,10 @@ async function getConfig(): Promise<EditorConfig> {
 			theme,
 			fontSize: (result.fontSize as number) || 14,
 			openOnClick: (result.openOnClick as boolean) ?? false,
+			syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
 		};
 	} catch {
-		return { theme: defaultDarkTheme, fontSize: 14, openOnClick: false };
+		return { theme: defaultDarkTheme, fontSize: 14, openOnClick: false, syntaxLanguage: "plaintext" };
 	}
 }
 
@@ -375,6 +378,14 @@ async function openEditor(startInInsertMode = false) {
 			fontSize={config.fontSize}
 			startInInsertMode={shouldStartInInsertMode}
 			inputLabel={inputLabel}
+			initialLanguage={config.syntaxLanguage}
+			onLanguageChange={async (language) => {
+				try {
+					await browser.storage.sync.set({ syntaxLanguage: language });
+				} catch (error) {
+					console.error("Failed to save syntax language:", error);
+				}
+			}}
 			onSave={(text) => {
 				if (targetElement) {
 					setElementText(targetElement, text);
