@@ -16,7 +16,12 @@
 		"format": "biome format .",
 		"lint": "biome lint .",
 		"format:fix": "biome format --write .",
-		"lint:fix": "biome check --write --unsafe ."
+		"lint:fix": "biome check --write --unsafe .",
+		"lint:extension": "addons-linter .output/chrome-mv3 --enable-background-service-worker --self-hosted",
+		"lint:extension:firefox": "addons-linter .output/firefox-mv2",
+		"validate": "pnpm lint:fix && pnpm format:fix && pnpm compile && pnpm build && pnpm lint:extension",
+		"validate:firefox": "pnpm lint:fix && pnpm format:fix && pnpm compile && pnpm build:firefox && pnpm lint:extension:firefox",
+		"validate:all": "pnpm lint:fix && pnpm format:fix && pnpm compile && pnpm build && pnpm build:firefox && pnpm lint:extension && pnpm lint:extension:firefox"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.2.2",
@@ -74,6 +79,7 @@
 		"@types/react": "^19.2.7",
 		"@types/react-dom": "^19.2.3",
 		"@wxt-dev/module-react": "^1.1.5",
+		"addons-linter": "^9.5.0",
 		"autoprefixer": "^10.4.23",
 		"postcss": "^8.5.6",
 		"tailwindcss": "^4.1.18",

@@ -1,12 +1,12 @@
-import ReactDOM from "react-dom/client";
 import { createRef } from "react";
+import ReactDOM from "react-dom/client";
 import { VimputEditor, type VimputEditorRef } from "@/components/VimputEditor";
 import globalsCss from "@/lib/globals.css?inline";
 import {
-	type Theme,
-	type ThemeColors,
 	defaultDarkTheme,
 	getThemeById,
+	type Theme,
+	type ThemeColors,
 } from "@/lib/themes";
 
 type EditableElement = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
@@ -236,6 +236,7 @@ interface EditorConfig {
 	theme: Theme;
 	fontSize: number;
 	openOnClick: boolean;
+	enterToSaveAndExit: boolean;
 	syntaxLanguage: string;
 }
 
@@ -246,6 +247,7 @@ async function getConfig(): Promise<EditorConfig> {
 			"customColors",
 			"fontSize",
 			"openOnClick",
+			"enterToSaveAndExit",
 			"syntaxLanguage",
 		]);
 
@@ -267,10 +269,17 @@ async function getConfig(): Promise<EditorConfig> {
 			theme,
 			fontSize: (result.fontSize as number) || 14,
 			openOnClick: (result.openOnClick as boolean) ?? false,
+			enterToSaveAndExit: (result.enterToSaveAndExit as boolean) ?? false,
 			syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
 		};
 	} catch {
-		return { theme: defaultDarkTheme, fontSize: 14, openOnClick: false, syntaxLanguage: "plaintext" };
+		return {
+			theme: defaultDarkTheme,
+			fontSize: 14,
+			openOnClick: false,
+			enterToSaveAndExit: false,
+			syntaxLanguage: "plaintext",
+		};
 	}
 }
 
@@ -377,6 +386,7 @@ async function openEditor(startInInsertMode = false) {
 			theme={config.theme}
 			fontSize={config.fontSize}
 			startInInsertMode={shouldStartInInsertMode}
+			enterToSaveAndExit={config.enterToSaveAndExit}
 			inputLabel={inputLabel}
 			initialLanguage={config.syntaxLanguage}
 			onLanguageChange={async (language) => {

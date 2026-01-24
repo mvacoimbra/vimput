@@ -1,4 +1,10 @@
-import { HelpCircle, MousePointerClick, RotateCcw, Type } from "lucide-react";
+import {
+	CornerDownLeft,
+	HelpCircle,
+	MousePointerClick,
+	RotateCcw,
+	Type,
+} from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
@@ -6,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type ThemeColors, builtInThemes, getThemeById } from "@/lib/themes";
+import { builtInThemes, getThemeById, type ThemeColors } from "@/lib/themes";
 import { useConfigStore } from "@/stores/configStore";
 
 interface KeybindItem {
@@ -127,11 +133,13 @@ export function SettingsPanel() {
 		customColors,
 		fontSize,
 		openOnClick,
+		enterToSaveAndExit,
 		setThemeId,
 		setCustomColors,
 		resetCustomColors,
 		setFontSize,
 		setOpenOnClick,
+		setEnterToSaveAndExit,
 		loadFromStorage,
 	} = useConfigStore();
 
@@ -306,7 +314,10 @@ export function SettingsPanel() {
 							/>
 							<Label style={{ color: colors?.headerText }}>Font Size</Label>
 						</div>
-						<span className="text-sm" style={{ color: colors?.headerMutedText }}>
+						<span
+							className="text-sm"
+							style={{ color: colors?.headerMutedText }}
+						>
 							{fontSize}px
 						</span>
 					</div>
@@ -364,6 +375,41 @@ export function SettingsPanel() {
 									? colors?.statusText
 									: colors?.lineNumberBackground,
 								backgroundColor: openOnClick
+									? colors?.statusText
+									: colors?.lineNumberBackground,
+								borderColor: colors?.border,
+							} as React.CSSProperties
+						}
+					/>
+				</div>
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-2">
+						<CornerDownLeft
+							className="h-4 w-4"
+							style={{ color: colors?.headerMutedText }}
+						/>
+						<div className="space-y-0.5">
+							<Label
+								htmlFor="enter-to-save"
+								style={{ color: colors?.headerText }}
+							>
+								Enter to Save & Exit
+							</Label>
+							<p className="text-xs" style={{ color: colors?.headerMutedText }}>
+								Press Enter in Normal mode to save and close
+							</p>
+						</div>
+					</div>
+					<Switch
+						id="enter-to-save"
+						checked={enterToSaveAndExit}
+						onCheckedChange={setEnterToSaveAndExit}
+						style={
+							{
+								"--switch-bg": enterToSaveAndExit
+									? colors?.statusText
+									: colors?.lineNumberBackground,
+								backgroundColor: enterToSaveAndExit
 									? colors?.statusText
 									: colors?.lineNumberBackground,
 								borderColor: colors?.border,

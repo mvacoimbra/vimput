@@ -27,6 +27,11 @@ pnpm run lint:fix         # Auto-fix lint issues
 pnpm run format           # Check formatting
 pnpm run format:fix       # Auto-fix formatting
 pnpm run compile          # TypeScript type-check (no emit)
+
+# Full validation (lint, format, compile, build, extension lint)
+pnpm run validate         # Validate Chrome build
+pnpm run validate:firefox # Validate Firefox build
+pnpm run validate:all     # Validate both Chrome and Firefox
 ```
 
 ## Architecture

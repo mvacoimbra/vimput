@@ -22,6 +22,12 @@ export default defineConfig({
 					data_collection_enabled: false,
 					required: ["none"],
 				},
+			} as {
+				id: string;
+				data_collection_permissions: {
+					data_collection_enabled: boolean;
+					required: string[];
+				};
 			},
 		},
 	},

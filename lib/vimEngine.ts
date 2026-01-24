@@ -1,4 +1,11 @@
-export type VimMode = "normal" | "insert" | "visual" | "visual-line" | "command" | "replace-char" | "operator-pending";
+export type VimMode =
+	| "normal"
+	| "insert"
+	| "visual"
+	| "visual-line"
+	| "command"
+	| "replace-char"
+	| "operator-pending";
 
 export interface CursorPosition {
 	line: number;
@@ -96,7 +103,12 @@ export function processKey(state: VimState, key: string): VimState {
 	// Handle operator-pending mode (c, d with motion)
 	if (state.mode === "operator-pending") {
 		if (key === "Escape") {
-			return { ...state, mode: "normal", pendingOperator: null, commandBuffer: "" };
+			return {
+				...state,
+				mode: "normal",
+				pendingOperator: null,
+				commandBuffer: "",
+			};
 		}
 		return handleOperatorPending(state, key);
 	}
@@ -324,7 +336,11 @@ export function processKey(state: VimState, key: string): VimState {
 
 		// Enter visual-line mode
 		if (key === "V") {
-			return { ...state, mode: "visual-line", visualStart: { ...state.cursor } };
+			return {
+				...state,
+				mode: "visual-line",
+				visualStart: { ...state.cursor },
+			};
 		}
 
 		// Replace character (r)
@@ -334,7 +350,12 @@ export function processKey(state: VimState, key: string): VimState {
 
 		// Change operator (c)
 		if (key === "c") {
-			return { ...state, mode: "operator-pending", pendingOperator: "c", commandBuffer: "c" };
+			return {
+				...state,
+				mode: "operator-pending",
+				pendingOperator: "c",
+				commandBuffer: "c",
+			};
 		}
 
 		// Delete character
@@ -632,7 +653,7 @@ function moveToEndOfWord(state: VimState): Partial<VimState> {
 	}
 
 	const targetLine = lines[line] || "";
-	
+
 	// Move to end of current word
 	while (column < targetLine.length - 1 && /\w/.test(targetLine[column + 1])) {
 		column++;
@@ -680,7 +701,7 @@ function moveToPreviousParagraph(state: VimState): Partial<VimState> {
 
 	// Move up to find previous empty line (paragraph boundary)
 	if (line > 0) line--;
-	
+
 	while (line > 0 && lines[line].trim() !== "") {
 		line--;
 	}
@@ -699,7 +720,7 @@ function moveToNextParagraph(state: VimState): Partial<VimState> {
 
 	// Move down to find next empty line (paragraph boundary)
 	if (line < lines.length - 1) line++;
-	
+
 	while (line < lines.length - 1 && lines[line].trim() !== "") {
 		line++;
 	}
@@ -715,7 +736,7 @@ function moveToNextParagraph(state: VimState): Partial<VimState> {
 function handleOperatorPending(state: VimState, key: string): VimState {
 	const lines = getLines(state.text);
 	const currentLine = lines[state.cursor.line] || "";
-	const operator = state.pendingOperator;
+	const _operator = state.pendingOperator;
 	const buffer = state.commandBuffer;
 
 	// Handle ci and ca (change in/around)
@@ -730,10 +751,10 @@ function handleOperatorPending(state: VimState, key: string): VimState {
 	if ((buffer === "ci" || buffer === "ca") && key.length === 1) {
 		const isInner = buffer === "ci";
 		const result = findTextObject(state, key, isInner);
-		
+
 		if (result) {
 			const { start, end, startLine, endLine } = result;
-			
+
 			// Delete the text object and enter insert mode
 			if (startLine === endLine) {
 				const line = lines[startLine];
@@ -751,8 +772,13 @@ function handleOperatorPending(state: VimState, key: string): VimState {
 				};
 			}
 		}
-		
-		return { ...state, mode: "normal", pendingOperator: null, commandBuffer: "" };
+
+		return {
+			...state,
+			mode: "normal",
+			pendingOperator: null,
+			commandBuffer: "",
+		};
 	}
 
 	// Handle cc (change line) - already handled in normal mode
@@ -774,9 +800,11 @@ function handleOperatorPending(state: VimState, key: string): VimState {
 	// Handle cw (change word)
 	if (buffer === "c" && key === "w") {
 		const { cursor } = moveToNextWord(state) as { cursor: CursorPosition };
-		const endCol = cursor.line === state.cursor.line ? cursor.column : currentLine.length;
+		const endCol =
+			cursor.line === state.cursor.line ? cursor.column : currentLine.length;
 		const yanked = currentLine.slice(state.cursor.column, endCol);
-		lines[state.cursor.line] = currentLine.slice(0, state.cursor.column) + currentLine.slice(endCol);
+		lines[state.cursor.line] =
+			currentLine.slice(0, state.cursor.column) + currentLine.slice(endCol);
 		return {
 			...state,
 			mode: "insert",
@@ -791,9 +819,13 @@ function handleOperatorPending(state: VimState, key: string): VimState {
 	// Handle ce (change to end of word)
 	if (buffer === "c" && key === "e") {
 		const { cursor } = moveToEndOfWord(state) as { cursor: CursorPosition };
-		const endCol = cursor.line === state.cursor.line ? cursor.column + 1 : currentLine.length;
+		const endCol =
+			cursor.line === state.cursor.line
+				? cursor.column + 1
+				: currentLine.length;
 		const yanked = currentLine.slice(state.cursor.column, endCol);
-		lines[state.cursor.line] = currentLine.slice(0, state.cursor.column) + currentLine.slice(endCol);
+		lines[state.cursor.line] =
+			currentLine.slice(0, state.cursor.column) + currentLine.slice(endCol);
 		return {
 			...state,
 			mode: "insert",
@@ -886,7 +918,12 @@ function findTextObject(
 			}
 		}
 
-		return { start, end, startLine: state.cursor.line, endLine: state.cursor.line };
+		return {
+			start,
+			end,
+			startLine: state.cursor.line,
+			endLine: state.cursor.line,
+		};
 	}
 
 	// Pair objects
@@ -898,7 +935,7 @@ function findTextObject(
 			// For quotes, find the enclosing pair
 			let start = currentLine.lastIndexOf(open, col);
 			let end = currentLine.indexOf(close, col);
-			
+
 			// If cursor is on a quote, decide which direction
 			if (currentLine[col] === open) {
 				const nextQuote = currentLine.indexOf(close, col + 1);
@@ -910,9 +947,19 @@ function findTextObject(
 
 			if (start !== -1 && end !== -1 && start < end) {
 				if (isInner) {
-					return { start: start + 1, end, startLine: state.cursor.line, endLine: state.cursor.line };
+					return {
+						start: start + 1,
+						end,
+						startLine: state.cursor.line,
+						endLine: state.cursor.line,
+					};
 				}
-				return { start, end: end + 1, startLine: state.cursor.line, endLine: state.cursor.line };
+				return {
+					start,
+					end: end + 1,
+					startLine: state.cursor.line,
+					endLine: state.cursor.line,
+				};
 			}
 		} else {
 			// For brackets, handle nesting
@@ -947,9 +994,19 @@ function findTextObject(
 
 			if (start !== -1 && end !== -1) {
 				if (isInner) {
-					return { start: start + 1, end, startLine: state.cursor.line, endLine: state.cursor.line };
+					return {
+						start: start + 1,
+						end,
+						startLine: state.cursor.line,
+						endLine: state.cursor.line,
+					};
 				}
-				return { start, end: end + 1, startLine: state.cursor.line, endLine: state.cursor.line };
+				return {
+					start,
+					end: end + 1,
+					startLine: state.cursor.line,
+					endLine: state.cursor.line,
+				};
 			}
 		}
 	}
