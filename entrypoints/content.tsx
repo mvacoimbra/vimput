@@ -237,6 +237,7 @@ interface EditorConfig {
 	fontSize: number;
 	openOnClick: boolean;
 	enterToSaveAndExit: boolean;
+	confirmOnBackdropClick: boolean;
 	syntaxLanguage: string;
 }
 
@@ -248,6 +249,7 @@ async function getConfig(): Promise<EditorConfig> {
 			"fontSize",
 			"openOnClick",
 			"enterToSaveAndExit",
+			"confirmOnBackdropClick",
 			"syntaxLanguage",
 		]);
 
@@ -270,6 +272,8 @@ async function getConfig(): Promise<EditorConfig> {
 			fontSize: (result.fontSize as number) || 14,
 			openOnClick: (result.openOnClick as boolean) ?? false,
 			enterToSaveAndExit: (result.enterToSaveAndExit as boolean) ?? false,
+			confirmOnBackdropClick:
+				(result.confirmOnBackdropClick as boolean) ?? true,
 			syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
 		};
 	} catch {
@@ -278,6 +282,7 @@ async function getConfig(): Promise<EditorConfig> {
 			fontSize: 14,
 			openOnClick: false,
 			enterToSaveAndExit: false,
+			confirmOnBackdropClick: true,
 			syntaxLanguage: "plaintext",
 		};
 	}
@@ -387,6 +392,7 @@ async function openEditor(startInInsertMode = false) {
 			fontSize={config.fontSize}
 			startInInsertMode={shouldStartInInsertMode}
 			enterToSaveAndExit={config.enterToSaveAndExit}
+			confirmOnBackdropClick={config.confirmOnBackdropClick}
 			inputLabel={inputLabel}
 			initialLanguage={config.syntaxLanguage}
 			onLanguageChange={async (language) => {

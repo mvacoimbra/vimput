@@ -1,6 +1,7 @@
 import {
 	CornerDownLeft,
 	HelpCircle,
+	MessageCircleWarning,
 	MousePointerClick,
 	RotateCcw,
 	Type,
@@ -134,12 +135,14 @@ export function SettingsPanel() {
 		fontSize,
 		openOnClick,
 		enterToSaveAndExit,
+		confirmOnBackdropClick,
 		setThemeId,
 		setCustomColors,
 		resetCustomColors,
 		setFontSize,
 		setOpenOnClick,
 		setEnterToSaveAndExit,
+		setConfirmOnBackdropClick,
 		loadFromStorage,
 	} = useConfigStore();
 
@@ -410,6 +413,41 @@ export function SettingsPanel() {
 									? colors?.statusText
 									: colors?.lineNumberBackground,
 								backgroundColor: enterToSaveAndExit
+									? colors?.statusText
+									: colors?.lineNumberBackground,
+								borderColor: colors?.border,
+							} as React.CSSProperties
+						}
+					/>
+				</div>
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-2">
+						<MessageCircleWarning
+							className="h-4 w-4"
+							style={{ color: colors?.headerMutedText }}
+						/>
+						<div className="space-y-0.5">
+							<Label
+								htmlFor="confirm-backdrop"
+								style={{ color: colors?.headerText }}
+							>
+								Confirm on Backdrop Click
+							</Label>
+							<p className="text-xs" style={{ color: colors?.headerMutedText }}>
+								Show confirmation when clicking outside the editor
+							</p>
+						</div>
+					</div>
+					<Switch
+						id="confirm-backdrop"
+						checked={confirmOnBackdropClick}
+						onCheckedChange={setConfirmOnBackdropClick}
+						style={
+							{
+								"--switch-bg": confirmOnBackdropClick
+									? colors?.statusText
+									: colors?.lineNumberBackground,
+								backgroundColor: confirmOnBackdropClick
 									? colors?.statusText
 									: colors?.lineNumberBackground,
 								borderColor: colors?.border,

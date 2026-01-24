@@ -12,6 +12,7 @@ export interface ConfigState {
 	fontSize: number;
 	openOnClick: boolean;
 	enterToSaveAndExit: boolean;
+	confirmOnBackdropClick: boolean;
 	syntaxLanguage: string;
 	setThemeId: (themeId: string) => void;
 	setCustomColors: (colors: Partial<ThemeColors>) => void;
@@ -19,6 +20,7 @@ export interface ConfigState {
 	setFontSize: (size: number) => void;
 	setOpenOnClick: (enabled: boolean) => void;
 	setEnterToSaveAndExit: (enabled: boolean) => void;
+	setConfirmOnBackdropClick: (enabled: boolean) => void;
 	setSyntaxLanguage: (language: string) => void;
 	getActiveTheme: () => Theme;
 	loadFromStorage: () => Promise<void>;
@@ -31,6 +33,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 	fontSize: 14,
 	openOnClick: false,
 	enterToSaveAndExit: false,
+	confirmOnBackdropClick: true,
 	syntaxLanguage: "plaintext",
 
 	setThemeId: (themeId: string) => {
@@ -60,6 +63,11 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
 	setEnterToSaveAndExit: (enabled: boolean) => {
 		set({ enterToSaveAndExit: enabled });
+		get().saveToStorage();
+	},
+
+	setConfirmOnBackdropClick: (enabled: boolean) => {
+		set({ confirmOnBackdropClick: enabled });
 		get().saveToStorage();
 	},
 
@@ -95,6 +103,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				"fontSize",
 				"openOnClick",
 				"enterToSaveAndExit",
+				"confirmOnBackdropClick",
 				"syntaxLanguage",
 			]);
 			set({
@@ -103,6 +112,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				fontSize: (result.fontSize as number) || 14,
 				openOnClick: (result.openOnClick as boolean) ?? false,
 				enterToSaveAndExit: (result.enterToSaveAndExit as boolean) ?? false,
+				confirmOnBackdropClick:
+					(result.confirmOnBackdropClick as boolean) ?? true,
 				syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
 			});
 		} catch (error) {
@@ -118,6 +129,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				fontSize,
 				openOnClick,
 				enterToSaveAndExit,
+				confirmOnBackdropClick,
 				syntaxLanguage,
 			} = get();
 			await browser.storage.sync.set({
@@ -126,6 +138,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				fontSize,
 				openOnClick,
 				enterToSaveAndExit,
+				confirmOnBackdropClick,
 				syntaxLanguage,
 			});
 		} catch (error) {

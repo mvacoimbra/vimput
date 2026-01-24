@@ -96,6 +96,7 @@ interface VimputEditorProps {
 	theme?: Theme;
 	startInInsertMode?: boolean;
 	enterToSaveAndExit?: boolean;
+	confirmOnBackdropClick?: boolean;
 	inputLabel?: string;
 	initialLanguage?: string;
 	onLanguageChange?: (language: string) => void;
@@ -121,6 +122,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			theme = defaultDarkTheme,
 			startInInsertMode = false,
 			enterToSaveAndExit = false,
+			confirmOnBackdropClick = true,
 			inputLabel,
 			initialLanguage = "plaintext",
 			onLanguageChange,
@@ -270,12 +272,12 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 		}, [handleSave, onClose]);
 
 		const handleCloseRequest = useCallback(() => {
-			if (hasUnsavedChanges) {
+			if (confirmOnBackdropClick && hasUnsavedChanges) {
 				setShowUnsavedDialog(true);
 			} else {
 				onClose();
 			}
-		}, [hasUnsavedChanges, onClose]);
+		}, [confirmOnBackdropClick, hasUnsavedChanges, onClose]);
 
 		// Expose requestClose method to parent via ref
 		useImperativeHandle(
