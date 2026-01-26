@@ -511,7 +511,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 									<div
 										key={lineIndex}
 										className="whitespace-pre"
-										style={{ lineHeight: "1.5em" }}
+										style={{ lineHeight: "1.5em", minHeight: "1.5em" }}
 									>
 										{renderLineWithCursor(
 											line,
@@ -546,7 +546,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 													<div
 														key={lineIndex}
 														className="whitespace-pre"
-														style={{ lineHeight: "1.5em" }}
+														style={{ lineHeight: "1.5em", minHeight: "1.5em" }}
 													>
 														{renderHighlightedLine(
 															styledTokens,
@@ -824,6 +824,8 @@ function renderEndOfLineCursor(
 					style={{
 						backgroundColor: colors.visualSelection,
 						width: "0.5rem",
+						height: "1.5em",
+						verticalAlign: "text-bottom",
 					}}
 				>
 					{"\u00A0"}
@@ -837,12 +839,16 @@ function renderEndOfLineCursor(
 							? {
 									color: colors.editorText,
 									opacity: cursorVisible ? 1 : 0,
+									height: "1.5em",
+									verticalAlign: "text-bottom",
 								}
 							: {
 									backgroundColor: cursorVisible
 										? colors.cursorBackground
 										: "transparent",
 									width: "0.5rem",
+									height: "1.5em",
+									verticalAlign: "text-bottom",
 								}
 					}
 				>
