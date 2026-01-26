@@ -271,9 +271,9 @@ async function getConfig(): Promise<EditorConfig> {
 			theme,
 			fontSize: (result.fontSize as number) || 14,
 			openOnClick: (result.openOnClick as boolean) ?? false,
-			enterToSaveAndExit: (result.enterToSaveAndExit as boolean) ?? false,
+			enterToSaveAndExit: (result.enterToSaveAndExit as boolean) ?? true,
 			confirmOnBackdropClick:
-				(result.confirmOnBackdropClick as boolean) ?? true,
+				(result.confirmOnBackdropClick as boolean) ?? false,
 			syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
 		};
 	} catch {
@@ -281,8 +281,8 @@ async function getConfig(): Promise<EditorConfig> {
 			theme: defaultDarkTheme,
 			fontSize: 14,
 			openOnClick: false,
-			enterToSaveAndExit: false,
-			confirmOnBackdropClick: true,
+			enterToSaveAndExit: true,
+			confirmOnBackdropClick: false,
 			syntaxLanguage: "plaintext",
 		};
 	}
@@ -306,7 +306,7 @@ async function openEditor(startInInsertMode = false) {
 
 	const config = await getConfig();
 	const initialText = getElementText(activeElement);
-	const shouldStartInInsertMode = startInInsertMode || config.openOnClick;
+	const shouldStartInInsertMode = startInInsertMode;
 
 	// Create shadow DOM host for style isolation
 	shadowHost = document.createElement("div");

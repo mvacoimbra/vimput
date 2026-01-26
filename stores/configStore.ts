@@ -32,8 +32,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 	customColors: {},
 	fontSize: 14,
 	openOnClick: false,
-	enterToSaveAndExit: false,
-	confirmOnBackdropClick: true,
+	enterToSaveAndExit: true,
+	confirmOnBackdropClick: false,
 	syntaxLanguage: "plaintext",
 
 	setThemeId: (themeId: string) => {
@@ -111,9 +111,9 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				customColors: (result.customColors as Partial<ThemeColors>) || {},
 				fontSize: (result.fontSize as number) || 14,
 				openOnClick: (result.openOnClick as boolean) ?? false,
-				enterToSaveAndExit: (result.enterToSaveAndExit as boolean) ?? false,
+				enterToSaveAndExit: (result.enterToSaveAndExit as boolean) ?? true,
 				confirmOnBackdropClick:
-					(result.confirmOnBackdropClick as boolean) ?? true,
+					(result.confirmOnBackdropClick as boolean) ?? false,
 				syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
 			});
 		} catch (error) {
