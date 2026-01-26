@@ -161,19 +161,35 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 
 		const hasUnsavedChanges = vimState.text !== lastSavedText;
 
-		// Cursor blinking effect
+		// Cursor blinking effect - only blink when idle
+		const blinkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+			null,
+		);
+
 		useEffect(() => {
-			const blinkInterval = setInterval(() => {
-				setCursorVisible((prev) => !prev);
+			// Reset cursor to visible on any state change
+			setCursorVisible(true);
+
+			// Clear any existing blink interval
+			if (blinkIntervalRef.current) {
+				clearInterval(blinkIntervalRef.current);
+				blinkIntervalRef.current = null;
+			}
+
+			// Start blinking after a short delay (idle detection)
+			const blinkDelay = setTimeout(() => {
+				blinkIntervalRef.current = setInterval(() => {
+					setCursorVisible((prev) => !prev);
+				}, 530);
 			}, 530);
 
-			return () => clearInterval(blinkInterval);
-		}, []);
-
-		// Reset cursor visibility when state changes (e.g., typing, moving)
-		useEffect(() => {
-			setCursorVisible(true);
-		}, []);
+			return () => {
+				clearTimeout(blinkDelay);
+				if (blinkIntervalRef.current) {
+					clearInterval(blinkIntervalRef.current);
+				}
+			};
+		}, [vimState.cursor, vimState.text, vimState.mode]);
 
 		const colors = theme.colors;
 
@@ -762,14 +778,16 @@ function renderChar(
 			<span key={charIndex} className="relative">
 				<span
 					style={{
-						color: colors.editorText,
 						position: "absolute",
-						left: 0,
+						left: "-1px",
+						top: "0.1em",
+						width: "2px",
+						height: "1.2em",
+						backgroundColor: colors.editorText,
 						opacity: cursorVisible ? 1 : 0,
+						pointerEvents: "none",
 					}}
-				>
-					|
-				</span>
+				/>
 				<span style={tokenStyle}>{char}</span>
 			</span>
 		);
@@ -837,10 +855,12 @@ function renderEndOfLineCursor(
 					style={
 						vimState.mode === "insert"
 							? {
-									color: colors.editorText,
+									width: "2px",
+									height: "1.2em",
+									backgroundColor: colors.editorText,
 									opacity: cursorVisible ? 1 : 0,
-									height: "1.5em",
 									verticalAlign: "text-bottom",
+									marginTop: "0.1em",
 								}
 							: {
 									backgroundColor: cursorVisible
@@ -852,7 +872,7 @@ function renderEndOfLineCursor(
 								}
 					}
 				>
-					{vimState.mode === "insert" ? "|" : "\u00A0"}
+					{vimState.mode === "insert" ? "" : "\u00A0"}
 				</span>
 			)}
 		</>
