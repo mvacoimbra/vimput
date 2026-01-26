@@ -29,9 +29,11 @@ export interface VimAction {
 }
 
 export function createInitialState(text: string = ""): VimState {
+	// Normalize line endings on initialization
+	const normalizedText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 	return {
 		mode: "normal",
-		text,
+		text: normalizedText,
 		cursor: { line: 0, column: 0 },
 		commandBuffer: "",
 		yankBuffer: "",
@@ -42,7 +44,8 @@ export function createInitialState(text: string = ""): VimState {
 }
 
 function getLines(text: string): string[] {
-	return text.split("\n");
+	// Normalize line endings (handle Windows \r\n and old Mac \r)
+	return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
 }
 
 function joinLines(lines: string[]): string {
