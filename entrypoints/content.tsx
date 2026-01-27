@@ -48,6 +48,8 @@ function isEditableElement(element: HTMLElement): boolean {
 		element.classList.contains("monaco-editor") ||
 		element.classList.contains("CodeMirror") ||
 		element.classList.contains("ace_editor") ||
+		element.closest(".ace_editor") ||
+		element.closest(".monaco-editor") ||
 		element.getAttribute("role") === "textbox" ||
 		element.getAttribute("role") === "code"
 	) {
@@ -95,6 +97,68 @@ function getElementText(element: EditableElement): string {
 		return element.value;
 	}
 
+	// Check if this is an Ace editor
+	const aceEditor = element.closest(".ace_editor");
+	if (aceEditor) {
+		// Try to use Ace API if available
+		const win = window as Window & {
+			ace?: {
+				edit: (
+					el: Element,
+				) => { getValue: () => string; setValue: (v: string) => void } | null;
+			};
+		};
+		if (win.ace?.edit) {
+			try {
+				const editor = win.ace.edit(aceEditor);
+				if (editor?.getValue) {
+					return editor.getValue();
+				}
+			} catch {
+				// Ace may throw if element is not initialized
+			}
+		}
+
+		// Fallback: get text from ace_line elements only (not gutter)
+		const textLayer = aceEditor.querySelector(".ace_text-layer");
+		if (textLayer) {
+			const lines: string[] = [];
+			textLayer.querySelectorAll(".ace_line").forEach((line) => {
+				lines.push(line.textContent || "");
+			});
+			return lines.join("\n");
+		}
+	}
+
+	// Check if this is a Monaco editor
+	const monacoEditor = element.closest(".monaco-editor");
+	if (monacoEditor) {
+		// Try to access Monaco API if available
+		const win = window as Window & {
+			monaco?: {
+				editor: {
+					getModels: () => Array<{ getValue: () => string }>;
+				};
+			};
+		};
+		if (win.monaco?.editor?.getModels) {
+			const models = win.monaco.editor.getModels();
+			if (models.length > 0) {
+				return models[0].getValue();
+			}
+		}
+
+		// Fallback: try to get text from the view lines only (not line numbers)
+		const viewLines = monacoEditor.querySelector(".view-lines");
+		if (viewLines) {
+			const lines: string[] = [];
+			viewLines.querySelectorAll(".view-line").forEach((line) => {
+				lines.push(line.textContent || "");
+			});
+			return lines.join("\n");
+		}
+	}
+
 	// For contenteditable elements, get the text content
 	return element.innerText || element.textContent || "";
 }
@@ -107,11 +171,81 @@ function setElementText(element: EditableElement, text: string): void {
 		element.value = text;
 		element.dispatchEvent(new Event("input", { bubbles: true }));
 		element.dispatchEvent(new Event("change", { bubbles: true }));
-	} else {
-		// For contenteditable elements
-		element.innerText = text;
-		element.dispatchEvent(new Event("input", { bubbles: true }));
+		return;
 	}
+
+	// Check if this is an Ace editor
+	const aceEditor = element.closest(".ace_editor");
+	if (aceEditor) {
+		// Try to use Ace API if available
+		const win = window as Window & {
+			ace?: {
+				edit: (
+					el: Element,
+				) => { getValue: () => string; setValue: (v: string) => void } | null;
+			};
+		};
+		if (win.ace?.edit) {
+			try {
+				const editor = win.ace.edit(aceEditor);
+				if (editor?.setValue) {
+					editor.setValue(text);
+					return;
+				}
+			} catch {
+				// Ace may throw if element is not initialized
+			}
+		}
+
+		// Fallback: try to use the textarea
+		const aceTextarea = aceEditor.querySelector(
+			"textarea.ace_text-input",
+		) as HTMLTextAreaElement | null;
+		if (aceTextarea) {
+			aceTextarea.focus();
+			document.execCommand("selectAll", false);
+			document.execCommand("insertText", false, text);
+			return;
+		}
+	}
+
+	// Check if this is a Monaco editor
+	const monacoEditor = element.closest(".monaco-editor");
+	if (monacoEditor) {
+		// Try to use Monaco API if available
+		const win = window as Window & {
+			monaco?: {
+				editor: {
+					getModels: () => Array<{
+						getValue: () => string;
+						setValue: (value: string) => void;
+					}>;
+				};
+			};
+		};
+		if (win.monaco?.editor?.getModels) {
+			const models = win.monaco.editor.getModels();
+			if (models.length > 0) {
+				models[0].setValue(text);
+				return;
+			}
+		}
+
+		// Fallback: try to use the textarea and trigger input
+		const monacoTextarea = monacoEditor.querySelector(
+			"textarea.inputarea",
+		) as HTMLTextAreaElement | null;
+		if (monacoTextarea) {
+			monacoTextarea.focus();
+			document.execCommand("selectAll", false);
+			document.execCommand("insertText", false, text);
+			return;
+		}
+	}
+
+	// For contenteditable elements
+	element.innerText = text;
+	element.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function getElementLabel(element: EditableElement): string | undefined {
