@@ -13,6 +13,69 @@ type EditableElement = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
 
 // Store reference to the currently focused editable element
 let activeElement: EditableElement | null = null;
+
+// Inject a script into the page context to access Monaco/Ace APIs
+// Uses external file to comply with CSP restrictions
+function injectPageScript() {
+	const script = document.createElement("script");
+	script.src = browser.runtime.getURL("pageScript.js");
+	script.onload = () => {
+		script.remove();
+	};
+	script.onerror = (e) => {
+		console.error("[Vimput] Failed to load page script:", e);
+		script.remove();
+	};
+	(document.head || document.documentElement).appendChild(script);
+}
+
+// Get text from Monaco/Ace via injected script
+function getEditorTextViaPageScript(): Promise<string | null> {
+	return new Promise((resolve) => {
+		let resolved = false;
+		const handler = (e: Event) => {
+			if (resolved) return;
+			resolved = true;
+			window.removeEventListener("vimput-editor-text-response", handler);
+			const detail = (e as CustomEvent).detail;
+			resolve(detail.text);
+		};
+		window.addEventListener("vimput-editor-text-response", handler);
+		window.dispatchEvent(new CustomEvent("vimput-get-editor-text"));
+		// Timeout fallback - increased to 500ms for slower pages
+		setTimeout(() => {
+			if (resolved) return;
+			resolved = true;
+			window.removeEventListener("vimput-editor-text-response", handler);
+			resolve(null);
+		}, 500);
+	});
+}
+
+// Set text in Monaco/Ace via injected script
+function setEditorTextViaPageScript(text: string): Promise<boolean> {
+	return new Promise((resolve) => {
+		let resolved = false;
+		const handler = (e: Event) => {
+			if (resolved) return;
+			resolved = true;
+			window.removeEventListener("vimput-set-text-response", handler);
+			const detail = (e as CustomEvent).detail;
+			resolve(detail.success);
+		};
+		window.addEventListener("vimput-set-text-response", handler);
+		window.dispatchEvent(
+			new CustomEvent("vimput-set-editor-text", { detail: { text } }),
+		);
+		// Timeout fallback - increased to 500ms for slower pages
+		setTimeout(() => {
+			if (resolved) return;
+			resolved = true;
+			window.removeEventListener("vimput-set-text-response", handler);
+			resolve(false);
+		}, 500);
+	});
+}
 let editorRoot: ReactDOM.Root | null = null;
 let shadowHost: HTMLDivElement | null = null;
 let editorRef: React.RefObject<VimputEditorRef | null> | null = null;
@@ -89,7 +152,7 @@ function findEditableElement(element: HTMLElement): EditableElement | null {
 	return null;
 }
 
-function getElementText(element: EditableElement): string {
+async function getElementText(element: EditableElement): Promise<string> {
 	if (
 		element instanceof HTMLInputElement ||
 		element instanceof HTMLTextAreaElement
@@ -97,65 +160,39 @@ function getElementText(element: EditableElement): string {
 		return element.value;
 	}
 
-	// Check if this is an Ace editor
-	const aceEditor = element.closest(".ace_editor");
-	if (aceEditor) {
-		// Try to use Ace API if available
-		const win = window as Window & {
-			ace?: {
-				edit: (
-					el: Element,
-				) => { getValue: () => string; setValue: (v: string) => void } | null;
-			};
-		};
-		if (win.ace?.edit) {
-			try {
-				const editor = win.ace.edit(aceEditor);
-				if (editor?.getValue) {
-					return editor.getValue();
-				}
-			} catch {
-				// Ace may throw if element is not initialized
-			}
-		}
-
-		// Fallback: get text from ace_line elements only (not gutter)
-		const textLayer = aceEditor.querySelector(".ace_text-layer");
-		if (textLayer) {
-			const lines: string[] = [];
-			textLayer.querySelectorAll(".ace_line").forEach((line) => {
-				lines.push(line.textContent || "");
-			});
-			return lines.join("\n");
-		}
-	}
-
-	// Check if this is a Monaco editor
+	// Check if this is a Monaco or Ace editor - use page script for API access
 	const monacoEditor = element.closest(".monaco-editor");
-	if (monacoEditor) {
-		// Try to access Monaco API if available
-		const win = window as Window & {
-			monaco?: {
-				editor: {
-					getModels: () => Array<{ getValue: () => string }>;
-				};
-			};
-		};
-		if (win.monaco?.editor?.getModels) {
-			const models = win.monaco.editor.getModels();
-			if (models.length > 0) {
-				return models[0].getValue();
+	const aceEditor = element.closest(".ace_editor");
+
+	if (monacoEditor || aceEditor) {
+		// Try to get text via injected page script (can access Monaco/Ace APIs)
+		const text = await getEditorTextViaPageScript();
+		if (text !== null) {
+			return text;
+		}
+
+		// Fallback: DOM scraping for Ace
+		if (aceEditor) {
+			const textLayer = aceEditor.querySelector(".ace_text-layer");
+			if (textLayer) {
+				const lines: string[] = [];
+				textLayer.querySelectorAll(".ace_line").forEach((line) => {
+					lines.push(line.textContent || "");
+				});
+				return lines.join("\n");
 			}
 		}
 
-		// Fallback: try to get text from the view lines only (not line numbers)
-		const viewLines = monacoEditor.querySelector(".view-lines");
-		if (viewLines) {
-			const lines: string[] = [];
-			viewLines.querySelectorAll(".view-line").forEach((line) => {
-				lines.push(line.textContent || "");
-			});
-			return lines.join("\n");
+		// Fallback: DOM scraping for Monaco (less reliable due to virtualization)
+		if (monacoEditor) {
+			const viewLines = monacoEditor.querySelector(".view-lines");
+			if (viewLines) {
+				const lines: string[] = [];
+				viewLines.querySelectorAll(".view-line").forEach((line) => {
+					lines.push(line.textContent || "");
+				});
+				return lines.join("\n");
+			}
 		}
 	}
 
@@ -163,7 +200,10 @@ function getElementText(element: EditableElement): string {
 	return element.innerText || element.textContent || "";
 }
 
-function setElementText(element: EditableElement, text: string): void {
+async function setElementText(
+	element: EditableElement,
+	text: string,
+): Promise<void> {
 	if (
 		element instanceof HTMLInputElement ||
 		element instanceof HTMLTextAreaElement
@@ -174,73 +214,23 @@ function setElementText(element: EditableElement, text: string): void {
 		return;
 	}
 
-	// Check if this is an Ace editor
-	const aceEditor = element.closest(".ace_editor");
-	if (aceEditor) {
-		// Try to use Ace API if available
-		const win = window as Window & {
-			ace?: {
-				edit: (
-					el: Element,
-				) => { getValue: () => string; setValue: (v: string) => void } | null;
-			};
-		};
-		if (win.ace?.edit) {
-			try {
-				const editor = win.ace.edit(aceEditor);
-				if (editor?.setValue) {
-					editor.setValue(text);
-					return;
-				}
-			} catch {
-				// Ace may throw if element is not initialized
-			}
-		}
-
-		// Fallback: try to use the textarea
-		const aceTextarea = aceEditor.querySelector(
-			"textarea.ace_text-input",
-		) as HTMLTextAreaElement | null;
-		if (aceTextarea) {
-			aceTextarea.focus();
-			document.execCommand("selectAll", false);
-			document.execCommand("insertText", false, text);
-			return;
-		}
-	}
-
-	// Check if this is a Monaco editor
+	// Check if this is a Monaco or Ace editor - use page script for API access
 	const monacoEditor = element.closest(".monaco-editor");
-	if (monacoEditor) {
-		// Try to use Monaco API if available
-		const win = window as Window & {
-			monaco?: {
-				editor: {
-					getModels: () => Array<{
-						getValue: () => string;
-						setValue: (value: string) => void;
-					}>;
-				};
-			};
-		};
-		if (win.monaco?.editor?.getModels) {
-			const models = win.monaco.editor.getModels();
-			if (models.length > 0) {
-				models[0].setValue(text);
-				return;
-			}
-		}
+	const aceEditor = element.closest(".ace_editor");
 
-		// Fallback: try to use the textarea and trigger input
-		const monacoTextarea = monacoEditor.querySelector(
-			"textarea.inputarea",
-		) as HTMLTextAreaElement | null;
-		if (monacoTextarea) {
-			monacoTextarea.focus();
-			document.execCommand("selectAll", false);
-			document.execCommand("insertText", false, text);
+	if (monacoEditor || aceEditor) {
+		// Try to set text via injected page script (can access Monaco/Ace APIs)
+		const success = await setEditorTextViaPageScript(text);
+		if (success) {
 			return;
 		}
+
+		// If the API approach failed, log a warning
+		// We avoid using execCommand fallback as it causes text duplication issues
+		console.warn(
+			"[Vimput] Could not set text via editor API. The editor might not be fully supported.",
+		);
+		return;
 	}
 
 	// For contenteditable elements
@@ -310,6 +300,9 @@ export default defineContentScript({
 	cssInjectionMode: "ui",
 
 	main() {
+		// Inject script into page context for Monaco/Ace API access
+		injectPageScript();
+
 		// Track focused editable elements
 		document.addEventListener(
 			"focusin",
@@ -439,7 +432,7 @@ async function openEditor(startInInsertMode = false) {
 	}
 
 	const config = await getConfig();
-	const initialText = getElementText(activeElement);
+	const initialText = await getElementText(activeElement);
 	const shouldStartInInsertMode = startInInsertMode;
 
 	// Create shadow DOM host for style isolation
@@ -536,9 +529,9 @@ async function openEditor(startInInsertMode = false) {
 					console.error("Failed to save syntax language:", error);
 				}
 			}}
-			onSave={(text) => {
+			onSave={async (text) => {
 				if (targetElement) {
-					setElementText(targetElement, text);
+					await setElementText(targetElement, text);
 				}
 			}}
 			onClose={closeEditor}

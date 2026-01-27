@@ -15,6 +15,12 @@ export default defineConfig({
 			48: "icons/png/icon-48.png",
 			128: "icons/png/icon-128.png",
 		},
+		web_accessible_resources: [
+			{
+				resources: ["pageScript.js"],
+				matches: ["<all_urls>"],
+			},
+		],
 		browser_specific_settings: {
 			gecko: {
 				id: "vimput@extension",
