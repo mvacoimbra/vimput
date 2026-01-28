@@ -75,6 +75,16 @@ bd sync               # Sync with git
 
 See `AGENTS.md` for full workflow details.
 
+## CI/CD
+
+Automated releases via GitHub Actions (`.github/workflows/release.yml`):
+
+- **Trigger**: Push to `main` (auto patch bump) or manual dispatch (choose major/minor/patch)
+- **Process**: Bump version > lint > build > zip > commit > tag > GitHub Release > upload to stores
+- **Environment**: Secrets and variables are stored in the `prod` GitHub environment
+- **Store deploy**: Chrome Web Store (via GCP service account) and Firefox Add-ons (via web-ext)
+- See `.env.example` for required secrets and variables
+
 ## Workflow
 
 - Always run `pnpm run build` after making code changes so the user can test
