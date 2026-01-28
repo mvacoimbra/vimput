@@ -8,7 +8,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { formatCode, isFormatterSupported } from "@/lib/formatter";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -24,6 +23,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { formatCode, isFormatterSupported } from "@/lib/formatter";
 import {
 	defaultDarkTheme,
 	type PrismThemeName,
@@ -165,10 +165,13 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			[onLanguageChange],
 		);
 
-		const showTemporaryMessage = useCallback((message: string, duration = 3000) => {
-			setStatusMessage(message);
-			setTimeout(() => setStatusMessage(null), duration);
-		}, []);
+		const showTemporaryMessage = useCallback(
+			(message: string, duration = 3000) => {
+				setStatusMessage(message);
+				setTimeout(() => setStatusMessage(null), duration);
+			},
+			[],
+		);
 
 		const handleFormat = useCallback(async () => {
 			if (isFormatting) return;
@@ -201,7 +204,15 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			} else {
 				showTemporaryMessage(result.error || "Format failed");
 			}
-		}, [isFormatting, formatterEnabled, selectedLanguage, vimState.text, indentType, indentSize, showTemporaryMessage]);
+		}, [
+			isFormatting,
+			formatterEnabled,
+			selectedLanguage,
+			vimState.text,
+			indentType,
+			indentSize,
+			showTemporaryMessage,
+		]);
 
 		// Handle pending actions from vim commands
 		useEffect(() => {
@@ -244,7 +255,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 					clearInterval(blinkIntervalRef.current);
 				}
 			};
-		}, [vimState.cursor, vimState.text, vimState.mode]);
+		}, []);
 
 		const colors = theme.colors;
 
@@ -652,9 +663,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 				>
 					<div className="flex items-center gap-3">
 						{statusMessage ? (
-							<span style={{ color: colors.commandText }}>
-								{statusMessage}
-							</span>
+							<span style={{ color: colors.commandText }}>{statusMessage}</span>
 						) : vimState.mode === "command" ? (
 							<span style={{ color: colors.commandText }}>
 								{vimState.commandBuffer}
@@ -698,11 +707,12 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 										<span className="flex items-center gap-1.5">
 											{lang.label}
 											{formatterEnabled && isFormatterSupported(lang.value) && (
-												<Sparkles
-													className="h-3 w-3"
-													style={{ color: colors.statusText }}
-													title="Formatter available (:fmt)"
-												/>
+												<span title="Formatter available (:fmt)">
+													<Sparkles
+														className="h-3 w-3"
+														style={{ color: colors.statusText }}
+													/>
+												</span>
 											)}
 										</span>
 									</SelectItem>

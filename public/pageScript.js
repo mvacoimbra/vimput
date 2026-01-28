@@ -1,7 +1,7 @@
 // Vimput Page Script - Injected to access Monaco/Ace APIs
-(function () {
+(() => {
 	// Listen for requests from content script to get editor text
-	window.addEventListener("vimput-get-editor-text", function () {
+	window.addEventListener("vimput-get-editor-text", () => {
 		let text = null;
 		let editorType = null;
 
@@ -52,7 +52,7 @@
 	});
 
 	// Listen for requests from content script to set editor text
-	window.addEventListener("vimput-set-editor-text", function (e) {
+	window.addEventListener("vimput-set-editor-text", (e) => {
 		const text = e.detail.text;
 		let success = false;
 

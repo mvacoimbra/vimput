@@ -221,7 +221,14 @@ export function processKey(state: VimState, key: string): VimState {
 		}
 
 		// Insert printable characters (single char or multi-char like spaces for Tab)
-		if (key.length >= 1 && !key.startsWith("Arrow") && key !== "Shift" && key !== "Control" && key !== "Alt" && key !== "Meta") {
+		if (
+			key.length >= 1 &&
+			!key.startsWith("Arrow") &&
+			key !== "Shift" &&
+			key !== "Control" &&
+			key !== "Alt" &&
+			key !== "Meta"
+		) {
 			const newLine =
 				currentLine.slice(0, state.cursor.column) +
 				key +
@@ -1228,7 +1235,12 @@ function executeCommand(state: VimState): VimState {
 		case "fmt":
 		case "format":
 			// Format - will be handled by the component
-			return { ...state, mode: "normal", commandBuffer: "", pendingAction: "format" };
+			return {
+				...state,
+				mode: "normal",
+				commandBuffer: "",
+				pendingAction: "format",
+			};
 		default:
 			return { ...state, mode: "normal", commandBuffer: "" };
 	}

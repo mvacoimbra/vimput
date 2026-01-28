@@ -563,9 +563,7 @@ export function SettingsPanel() {
 							{/* Download and instructions */}
 							{!workerStatus?.available && (
 								<div className="space-y-2">
-									<p>
-										Download the script and run it to enable formatting.
-									</p>
+									<p>Download the script and run it to enable formatting.</p>
 									<div className="flex gap-2">
 										<Button
 											variant="outline"

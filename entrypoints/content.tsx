@@ -18,7 +18,7 @@ let activeElement: EditableElement | null = null;
 // Uses external file to comply with CSP restrictions
 function injectPageScript() {
 	const script = document.createElement("script");
-	script.src = browser.runtime.getURL("pageScript.js");
+	script.src = browser.runtime.getURL("/pageScript.js");
 	script.onload = () => {
 		script.remove();
 	};

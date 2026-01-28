@@ -161,7 +161,7 @@ export async function formatCode(
 							error: data.error || "Formatter error",
 						};
 					}
-				} catch (err) {
+				} catch (_err) {
 					// Worker request failed, try builtin fallback
 				}
 			} else {
@@ -181,7 +181,8 @@ export async function formatCode(
 				return {
 					success: false,
 					result: code,
-					error: "Formatter worker not running. Start it to format this language.",
+					error:
+						"Formatter worker not running. Start it to format this language.",
 				};
 			}
 		}
@@ -218,5 +219,5 @@ export async function formatCode(
  * Get the URL to download the formatter worker script.
  */
 export function getWorkerDownloadUrl(): string {
-	return browser.runtime.getURL("vimput-formatter.py");
+	return browser.runtime.getURL("/vimput-formatter.py");
 }
