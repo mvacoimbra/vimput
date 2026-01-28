@@ -1,0 +1,153 @@
+name: Release and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Skip if the commit was made by the bot (version bump commit)
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: version
+        run: |
+          # Determine bump type (default to patch for push events)
+          BUMP_TYPE="${{ github.event.inputs.version_bump || 'patch' }}"
+
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Calculate new version
+          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          PATCH=${VERSION_PARTS[2]}
+
+          case $BUMP_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "New version: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # Update version in all files
+          sed -i "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" package.json
+          sed -i "s/version: \"$CURRENT_VERSION\"/version: \"$NEW_VERSION\"/" wxt.config.ts
+          sed -i "s/v$CURRENT_VERSION/v$NEW_VERSION/" entrypoints/popup/App.tsx
+
+      - name: Lint and format
+        run: |
+          pnpm run lint:fix
+          pnpm run format:fix
+
+      - name: Type check
+        run: pnpm run compile
+
+      - name: Build Chrome extension
+        run: pnpm run build
+
+      - name: Build Firefox extension
+        run: pnpm run build:firefox
+
+      - name: Create Chrome zip
+        run: pnpm run zip
+
+      - name: Create Firefox zip
+        run: pnpm run zip:firefox
+
+      - name: Commit version bump
+        run: |
+          git add package.json wxt.config.ts entrypoints/popup/App.tsx
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]" || echo "No changes to commit"
+          git push
+
+      - name: Create Git tag
+        run: |
+          git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            .output/*.zip
+
+      - name: Upload to Chrome Web Store
+        if: ${{ vars.CHROME_EXTENSION_ID != '' }}
+        uses: mnao305/chrome-extension-upload@v5.0.0
+        with:
+          file-path: .output/vimput-${{ steps.version.outputs.version }}-chrome.zip
+          extension-id: ${{ vars.CHROME_EXTENSION_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          publish: false  # Set to true to auto-publish
+
+      - name: Upload to Firefox Add-ons
+        if: ${{ vars.AMO_EXTENSION_ID != '' }}
+        run: |
+          pnpm add -D web-ext
+          pnpm web-ext sign \
+            --channel=listed \
+            --source-dir=.output/firefox-mv2 \
+            --api-key=${{ secrets.AMO_JWT_ISSUER }} \
+            --api-secret=${{ secrets.AMO_JWT_SECRET }}
+        continue-on-error: true  # AMO review can take time
