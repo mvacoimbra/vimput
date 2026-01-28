@@ -17,7 +17,7 @@ export default defineConfig({
 		},
 		web_accessible_resources: [
 			{
-				resources: ["pageScript.js"],
+				resources: ["pageScript.js", "vimput-formatter.py"],
 				matches: ["<all_urls>"],
 			},
 		],
