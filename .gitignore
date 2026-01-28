@@ -27,3 +27,8 @@ web-ext.config.ts
 
 # bv (beads viewer) local config and caches
 .bv/
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.*.local
