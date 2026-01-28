@@ -131,15 +131,41 @@ jobs:
             .output/*.zip
 
       - name: Upload to Chrome Web Store
-        if: ${{ vars.CHROME_EXTENSION_ID != '' }}
-        uses: mnao305/chrome-extension-upload@v5.0.0
-        with:
-          file-path: .output/vimput-${{ steps.version.outputs.version }}-chrome.zip
-          extension-id: ${{ vars.CHROME_EXTENSION_ID }}
-          client-id: ${{ secrets.CHROME_CLIENT_ID }}
-          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          publish: false  # Set to true to auto-publish
+        if: ${{ secrets.CHROME_SERVICE_ACCOUNT_KEY != '' && vars.CHROME_EXTENSION_ID != '' }}
+        env:
+          CHROME_SERVICE_ACCOUNT_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_KEY }}
+          EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
+        run: |
+          # Install Google Auth library
+          pnpm add -D google-auth-library
+
+          # Write service account key to file
+          echo "$CHROME_SERVICE_ACCOUNT_KEY" > /tmp/service-account.json
+
+          # Get access token using service account
+          ACCESS_TOKEN=$(node -e "
+            const { GoogleAuth } = require('google-auth-library');
+            (async () => {
+              const auth = new GoogleAuth({
+                keyFile: '/tmp/service-account.json',
+                scopes: ['https://www.googleapis.com/auth/chromewebstore']
+              });
+              const token = await auth.getAccessToken();
+              console.log(token);
+            })();
+          ")
+
+          # Upload to Chrome Web Store API
+          RESPONSE=$(curl -s -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -T ".output/vimput-${{ steps.version.outputs.version }}-chrome.zip" \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXTENSION_ID")
+
+          echo "Upload response: $RESPONSE"
+
+          # Clean up
+          rm /tmp/service-account.json
 
       - name: Upload to Firefox Add-ons
         if: ${{ vars.AMO_EXTENSION_ID != '' }}
