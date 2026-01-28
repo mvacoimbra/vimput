@@ -6,6 +6,9 @@ import {
 	type ThemeColors,
 } from "@/lib/themes";
 
+export type IndentType = "tabs" | "spaces";
+export type IndentSize = 2 | 4 | 8;
+
 export interface ConfigState {
 	themeId: string;
 	customColors: Partial<ThemeColors>;
@@ -14,6 +17,8 @@ export interface ConfigState {
 	enterToSaveAndExit: boolean;
 	confirmOnBackdropClick: boolean;
 	syntaxLanguage: string;
+	indentType: IndentType;
+	indentSize: IndentSize;
 	setThemeId: (themeId: string) => void;
 	setCustomColors: (colors: Partial<ThemeColors>) => void;
 	resetCustomColors: () => void;
@@ -22,6 +27,8 @@ export interface ConfigState {
 	setEnterToSaveAndExit: (enabled: boolean) => void;
 	setConfirmOnBackdropClick: (enabled: boolean) => void;
 	setSyntaxLanguage: (language: string) => void;
+	setIndentType: (type: IndentType) => void;
+	setIndentSize: (size: IndentSize) => void;
 	getActiveTheme: () => Theme;
 	loadFromStorage: () => Promise<void>;
 	saveToStorage: () => Promise<void>;
@@ -35,6 +42,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 	enterToSaveAndExit: true,
 	confirmOnBackdropClick: false,
 	syntaxLanguage: "plaintext",
+	indentType: "spaces",
+	indentSize: 2,
 
 	setThemeId: (themeId: string) => {
 		set({ themeId, customColors: {} });
@@ -76,6 +85,16 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 		get().saveToStorage();
 	},
 
+	setIndentType: (type: IndentType) => {
+		set({ indentType: type });
+		get().saveToStorage();
+	},
+
+	setIndentSize: (size: IndentSize) => {
+		set({ indentSize: size });
+		get().saveToStorage();
+	},
+
 	getActiveTheme: () => {
 		const { themeId, customColors } = get();
 		const baseTheme = getThemeById(themeId) || defaultDarkTheme;
@@ -105,6 +124,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				"enterToSaveAndExit",
 				"confirmOnBackdropClick",
 				"syntaxLanguage",
+				"indentType",
+				"indentSize",
 			]);
 			set({
 				themeId: (result.themeId as string) || "default-dark",
@@ -115,6 +136,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				confirmOnBackdropClick:
 					(result.confirmOnBackdropClick as boolean) ?? false,
 				syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
+				indentType: (result.indentType as IndentType) || "spaces",
+				indentSize: (result.indentSize as IndentSize) || 2,
 			});
 		} catch (error) {
 			console.error("Failed to load config from storage:", error);
@@ -131,6 +154,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				enterToSaveAndExit,
 				confirmOnBackdropClick,
 				syntaxLanguage,
+				indentType,
+				indentSize,
 			} = get();
 			await browser.storage.sync.set({
 				themeId,
@@ -140,6 +165,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				enterToSaveAndExit,
 				confirmOnBackdropClick,
 				syntaxLanguage,
+				indentType,
+				indentSize,
 			});
 		} catch (error) {
 			console.error("Failed to save config to storage:", error);

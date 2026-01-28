@@ -366,6 +366,8 @@ interface EditorConfig {
 	enterToSaveAndExit: boolean;
 	confirmOnBackdropClick: boolean;
 	syntaxLanguage: string;
+	indentType: "tabs" | "spaces";
+	indentSize: 2 | 4 | 8;
 }
 
 async function getConfig(): Promise<EditorConfig> {
@@ -378,6 +380,8 @@ async function getConfig(): Promise<EditorConfig> {
 			"enterToSaveAndExit",
 			"confirmOnBackdropClick",
 			"syntaxLanguage",
+			"indentType",
+			"indentSize",
 		]);
 
 		const themeId = (result.themeId as string) || "default-dark";
@@ -402,6 +406,8 @@ async function getConfig(): Promise<EditorConfig> {
 			confirmOnBackdropClick:
 				(result.confirmOnBackdropClick as boolean) ?? false,
 			syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
+			indentType: (result.indentType as "tabs" | "spaces") || "spaces",
+			indentSize: (result.indentSize as 2 | 4 | 8) || 2,
 		};
 	} catch {
 		return {
@@ -411,6 +417,8 @@ async function getConfig(): Promise<EditorConfig> {
 			enterToSaveAndExit: true,
 			confirmOnBackdropClick: false,
 			syntaxLanguage: "plaintext",
+			indentType: "spaces",
+			indentSize: 2,
 		};
 	}
 }
@@ -522,6 +530,8 @@ async function openEditor(startInInsertMode = false) {
 			confirmOnBackdropClick={config.confirmOnBackdropClick}
 			inputLabel={inputLabel}
 			initialLanguage={config.syntaxLanguage}
+			indentType={config.indentType}
+			indentSize={config.indentSize}
 			onLanguageChange={async (language) => {
 				try {
 					await browser.storage.sync.set({ syntaxLanguage: language });

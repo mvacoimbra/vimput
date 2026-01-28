@@ -1,6 +1,7 @@
 import {
 	CornerDownLeft,
 	HelpCircle,
+	IndentIncrease,
 	MessageCircleWarning,
 	MousePointerClick,
 	RotateCcw,
@@ -136,6 +137,8 @@ export function SettingsPanel() {
 		openOnClick,
 		enterToSaveAndExit,
 		confirmOnBackdropClick,
+		indentType,
+		indentSize,
 		setThemeId,
 		setCustomColors,
 		resetCustomColors,
@@ -143,6 +146,8 @@ export function SettingsPanel() {
 		setOpenOnClick,
 		setEnterToSaveAndExit,
 		setConfirmOnBackdropClick,
+		setIndentType,
+		setIndentSize,
 		loadFromStorage,
 	} = useConfigStore();
 
@@ -344,6 +349,83 @@ export function SettingsPanel() {
 					>
 						<span>10px</span>
 						<span>24px</span>
+					</div>
+				</div>
+
+				<div className="space-y-3">
+					<div className="flex items-center gap-2">
+						<IndentIncrease
+							className="h-4 w-4"
+							style={{ color: colors?.headerMutedText }}
+						/>
+						<Label style={{ color: colors?.headerText }}>Indentation</Label>
+					</div>
+					<div className="flex gap-3">
+						<select
+							value={indentType}
+							onChange={(e) =>
+								setIndentType(e.target.value as "tabs" | "spaces")
+							}
+							className="flex h-9 flex-1 items-center justify-between rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2"
+							style={inputStyle}
+						>
+							<option
+								value="spaces"
+								style={{
+									backgroundColor: colors?.editorBackground,
+									color: colors?.editorText,
+								}}
+							>
+								Spaces
+							</option>
+							<option
+								value="tabs"
+								style={{
+									backgroundColor: colors?.editorBackground,
+									color: colors?.editorText,
+								}}
+							>
+								Tab
+							</option>
+						</select>
+						{indentType === "spaces" && (
+							<select
+								value={indentSize}
+								onChange={(e) =>
+									setIndentSize(Number(e.target.value) as 2 | 4 | 8)
+								}
+								className="flex h-9 w-20 items-center justify-between rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2"
+								style={inputStyle}
+							>
+								<option
+									value={2}
+									style={{
+										backgroundColor: colors?.editorBackground,
+										color: colors?.editorText,
+									}}
+								>
+									2
+								</option>
+								<option
+									value={4}
+									style={{
+										backgroundColor: colors?.editorBackground,
+										color: colors?.editorText,
+									}}
+								>
+									4
+								</option>
+								<option
+									value={8}
+									style={{
+										backgroundColor: colors?.editorBackground,
+										color: colors?.editorText,
+									}}
+								>
+									8
+								</option>
+							</select>
+						)}
 					</div>
 				</div>
 			</TabsContent>

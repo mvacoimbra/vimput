@@ -60,6 +60,25 @@ This is a WXT-based browser extension using React and TypeScript.
 - **components/SettingsPanel.tsx** - Settings UI in popup
 - **components/BuyMeCoffee.tsx** - Support link component
 
+## Issue Tracking
+
+This project uses **bd** (beads) for local issue tracking. Issues are stored in `.beads/` and tracked in git.
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd create --title="..." --type=task --priority=2
+bd update <id> --status=in_progress
+bd close <id>         # Complete work
+bd sync               # Sync with git
+```
+
+See `AGENTS.md` for full workflow details.
+
+## Workflow
+
+- Always run `pnpm run build` after making code changes so the user can test
+
 ## Code Conventions
 
 - Use camelCase for non-component files

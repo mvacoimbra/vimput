@@ -216,7 +216,8 @@ export function processKey(state: VimState, key: string): VimState {
 			};
 		}
 
-		if (key.length === 1) {
+		// Insert printable characters (single char or multi-char like spaces for Tab)
+		if (key.length >= 1 && !key.startsWith("Arrow") && key !== "Shift" && key !== "Control" && key !== "Alt" && key !== "Meta") {
 			const newLine =
 				currentLine.slice(0, state.cursor.column) +
 				key +
@@ -225,7 +226,7 @@ export function processKey(state: VimState, key: string): VimState {
 			return {
 				...state,
 				text: joinLines(lines),
-				cursor: { ...state.cursor, column: state.cursor.column + 1 },
+				cursor: { ...state.cursor, column: state.cursor.column + key.length },
 			};
 		}
 

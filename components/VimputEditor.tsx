@@ -100,6 +100,8 @@ interface VimputEditorProps {
 	inputLabel?: string;
 	initialLanguage?: string;
 	onLanguageChange?: (language: string) => void;
+	indentType?: "tabs" | "spaces";
+	indentSize?: 2 | 4 | 8;
 }
 
 interface Position {
@@ -126,6 +128,8 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			inputLabel,
 			initialLanguage = "plaintext",
 			onLanguageChange,
+			indentType = "spaces",
+			indentSize = 2,
 		},
 		ref,
 	) {
@@ -341,7 +345,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 
 				// Handle special keys
 				if (key === "Tab") {
-					key = "\t";
+					key = indentType === "tabs" ? "\t" : " ".repeat(indentSize);
 				}
 
 				const prevCommand = vimState.commandBuffer;
@@ -376,6 +380,8 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 				isResizing,
 				handleSaveAndClose,
 				enterToSaveAndExit,
+				indentType,
+				indentSize,
 			],
 		);
 
