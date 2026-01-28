@@ -52,6 +52,23 @@ function getEditorTextViaPageScript(): Promise<string | null> {
 	});
 }
 
+// Firefox-specific: cloneInto is needed to pass data from content script to page script
+declare function cloneInto<T>(
+	obj: T,
+	targetScope: Window | object,
+	options?: { cloneFunctions?: boolean; wrapReflectors?: boolean },
+): T;
+
+// Helper to create detail object that works across both Chrome and Firefox
+function createEventDetail<T extends object>(detail: T): T {
+	// In Firefox, we need to use cloneInto to pass data to page script context
+	// In Chrome, cloneInto doesn't exist, so we just return the detail as-is
+	if (typeof cloneInto === "function") {
+		return cloneInto(detail, window);
+	}
+	return detail;
+}
+
 // Set text in Monaco/Ace via injected script
 function setEditorTextViaPageScript(text: string): Promise<boolean> {
 	return new Promise((resolve) => {
@@ -65,7 +82,9 @@ function setEditorTextViaPageScript(text: string): Promise<boolean> {
 		};
 		window.addEventListener("vimput-set-text-response", handler);
 		window.dispatchEvent(
-			new CustomEvent("vimput-set-editor-text", { detail: { text } }),
+			new CustomEvent("vimput-set-editor-text", {
+				detail: createEventDetail({ text }),
+			}),
 		);
 		// Timeout fallback - increased to 500ms for slower pages
 		setTimeout(() => {
@@ -354,8 +373,6 @@ export default defineContentScript({
 				openEditor();
 			}
 		});
-
-		console.log("Vimput content script loaded");
 	},
 });
 

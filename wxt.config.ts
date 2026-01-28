@@ -7,7 +7,7 @@ export default defineConfig({
 		name: "Vimput",
 		description:
 			"Edit any text input with a Vim-powered editor. Right-click on any input field to open the Vimput editor.",
-		version: "1.3.0",
+		version: "1.3.1",
 		permissions: ["contextMenus", "storage", "activeTab"],
 		icons: {
 			16: "icons/png/icon-16.png",

@@ -125,6 +125,4 @@
 			}),
 		);
 	});
-
-	console.log("[Vimput] Page script loaded successfully");
 })();
