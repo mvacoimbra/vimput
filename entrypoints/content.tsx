@@ -13,6 +13,88 @@ type EditableElement = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
 
 // Store reference to the currently focused editable element
 let activeElement: EditableElement | null = null;
+
+// Inject a script into the page context to access Monaco/Ace APIs
+// Uses external file to comply with CSP restrictions
+function injectPageScript() {
+	const script = document.createElement("script");
+	script.src = browser.runtime.getURL("/pageScript.js");
+	script.onload = () => {
+		script.remove();
+	};
+	script.onerror = (e) => {
+		console.error("[Vimput] Failed to load page script:", e);
+		script.remove();
+	};
+	(document.head || document.documentElement).appendChild(script);
+}
+
+// Get text from Monaco/Ace via injected script
+function getEditorTextViaPageScript(): Promise<string | null> {
+	return new Promise((resolve) => {
+		let resolved = false;
+		const handler = (e: Event) => {
+			if (resolved) return;
+			resolved = true;
+			window.removeEventListener("vimput-editor-text-response", handler);
+			const detail = (e as CustomEvent).detail;
+			resolve(detail.text);
+		};
+		window.addEventListener("vimput-editor-text-response", handler);
+		window.dispatchEvent(new CustomEvent("vimput-get-editor-text"));
+		// Timeout fallback - increased to 500ms for slower pages
+		setTimeout(() => {
+			if (resolved) return;
+			resolved = true;
+			window.removeEventListener("vimput-editor-text-response", handler);
+			resolve(null);
+		}, 500);
+	});
+}
+
+// Firefox-specific: cloneInto is needed to pass data from content script to page script
+declare function cloneInto<T>(
+	obj: T,
+	targetScope: Window | object,
+	options?: { cloneFunctions?: boolean; wrapReflectors?: boolean },
+): T;
+
+// Helper to create detail object that works across both Chrome and Firefox
+function createEventDetail<T extends object>(detail: T): T {
+	// In Firefox, we need to use cloneInto to pass data to page script context
+	// In Chrome, cloneInto doesn't exist, so we just return the detail as-is
+	if (typeof cloneInto === "function") {
+		return cloneInto(detail, window);
+	}
+	return detail;
+}
+
+// Set text in Monaco/Ace via injected script
+function setEditorTextViaPageScript(text: string): Promise<boolean> {
+	return new Promise((resolve) => {
+		let resolved = false;
+		const handler = (e: Event) => {
+			if (resolved) return;
+			resolved = true;
+			window.removeEventListener("vimput-set-text-response", handler);
+			const detail = (e as CustomEvent).detail;
+			resolve(detail.success);
+		};
+		window.addEventListener("vimput-set-text-response", handler);
+		window.dispatchEvent(
+			new CustomEvent("vimput-set-editor-text", {
+				detail: createEventDetail({ text }),
+			}),
+		);
+		// Timeout fallback - increased to 500ms for slower pages
+		setTimeout(() => {
+			if (resolved) return;
+			resolved = true;
+			window.removeEventListener("vimput-set-text-response", handler);
+			resolve(false);
+		}, 500);
+	});
+}
 let editorRoot: ReactDOM.Root | null = null;
 let shadowHost: HTMLDivElement | null = null;
 let editorRef: React.RefObject<VimputEditorRef | null> | null = null;
@@ -48,6 +130,8 @@ function isEditableElement(element: HTMLElement): boolean {
 		element.classList.contains("monaco-editor") ||
 		element.classList.contains("CodeMirror") ||
 		element.classList.contains("ace_editor") ||
+		element.closest(".ace_editor") ||
+		element.closest(".monaco-editor") ||
 		element.getAttribute("role") === "textbox" ||
 		element.getAttribute("role") === "code"
 	) {
@@ -87,7 +171,7 @@ function findEditableElement(element: HTMLElement): EditableElement | null {
 	return null;
 }
 
-function getElementText(element: EditableElement): string {
+async function getElementText(element: EditableElement): Promise<string> {
 	if (
 		element instanceof HTMLInputElement ||
 		element instanceof HTMLTextAreaElement
@@ -95,11 +179,50 @@ function getElementText(element: EditableElement): string {
 		return element.value;
 	}
 
+	// Check if this is a Monaco or Ace editor - use page script for API access
+	const monacoEditor = element.closest(".monaco-editor");
+	const aceEditor = element.closest(".ace_editor");
+
+	if (monacoEditor || aceEditor) {
+		// Try to get text via injected page script (can access Monaco/Ace APIs)
+		const text = await getEditorTextViaPageScript();
+		if (text !== null) {
+			return text;
+		}
+
+		// Fallback: DOM scraping for Ace
+		if (aceEditor) {
+			const textLayer = aceEditor.querySelector(".ace_text-layer");
+			if (textLayer) {
+				const lines: string[] = [];
+				textLayer.querySelectorAll(".ace_line").forEach((line) => {
+					lines.push(line.textContent || "");
+				});
+				return lines.join("\n");
+			}
+		}
+
+		// Fallback: DOM scraping for Monaco (less reliable due to virtualization)
+		if (monacoEditor) {
+			const viewLines = monacoEditor.querySelector(".view-lines");
+			if (viewLines) {
+				const lines: string[] = [];
+				viewLines.querySelectorAll(".view-line").forEach((line) => {
+					lines.push(line.textContent || "");
+				});
+				return lines.join("\n");
+			}
+		}
+	}
+
 	// For contenteditable elements, get the text content
 	return element.innerText || element.textContent || "";
 }
 
-function setElementText(element: EditableElement, text: string): void {
+async function setElementText(
+	element: EditableElement,
+	text: string,
+): Promise<void> {
 	if (
 		element instanceof HTMLInputElement ||
 		element instanceof HTMLTextAreaElement
@@ -107,11 +230,31 @@ function setElementText(element: EditableElement, text: string): void {
 		element.value = text;
 		element.dispatchEvent(new Event("input", { bubbles: true }));
 		element.dispatchEvent(new Event("change", { bubbles: true }));
-	} else {
-		// For contenteditable elements
-		element.innerText = text;
-		element.dispatchEvent(new Event("input", { bubbles: true }));
+		return;
 	}
+
+	// Check if this is a Monaco or Ace editor - use page script for API access
+	const monacoEditor = element.closest(".monaco-editor");
+	const aceEditor = element.closest(".ace_editor");
+
+	if (monacoEditor || aceEditor) {
+		// Try to set text via injected page script (can access Monaco/Ace APIs)
+		const success = await setEditorTextViaPageScript(text);
+		if (success) {
+			return;
+		}
+
+		// If the API approach failed, log a warning
+		// We avoid using execCommand fallback as it causes text duplication issues
+		console.warn(
+			"[Vimput] Could not set text via editor API. The editor might not be fully supported.",
+		);
+		return;
+	}
+
+	// For contenteditable elements
+	element.innerText = text;
+	element.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function getElementLabel(element: EditableElement): string | undefined {
@@ -176,6 +319,9 @@ export default defineContentScript({
 	cssInjectionMode: "ui",
 
 	main() {
+		// Inject script into page context for Monaco/Ace API access
+		injectPageScript();
+
 		// Track focused editable elements
 		document.addEventListener(
 			"focusin",
@@ -227,8 +373,6 @@ export default defineContentScript({
 				openEditor();
 			}
 		});
-
-		console.log("Vimput content script loaded");
 	},
 });
 
@@ -239,6 +383,9 @@ interface EditorConfig {
 	enterToSaveAndExit: boolean;
 	confirmOnBackdropClick: boolean;
 	syntaxLanguage: string;
+	indentType: "tabs" | "spaces";
+	indentSize: 2 | 4 | 8;
+	formatterEnabled: boolean;
 }
 
 async function getConfig(): Promise<EditorConfig> {
@@ -251,6 +398,9 @@ async function getConfig(): Promise<EditorConfig> {
 			"enterToSaveAndExit",
 			"confirmOnBackdropClick",
 			"syntaxLanguage",
+			"indentType",
+			"indentSize",
+			"formatterEnabled",
 		]);
 
 		const themeId = (result.themeId as string) || "default-dark";
@@ -271,19 +421,25 @@ async function getConfig(): Promise<EditorConfig> {
 			theme,
 			fontSize: (result.fontSize as number) || 14,
 			openOnClick: (result.openOnClick as boolean) ?? false,
-			enterToSaveAndExit: (result.enterToSaveAndExit as boolean) ?? false,
+			enterToSaveAndExit: (result.enterToSaveAndExit as boolean) ?? true,
 			confirmOnBackdropClick:
-				(result.confirmOnBackdropClick as boolean) ?? true,
+				(result.confirmOnBackdropClick as boolean) ?? false,
 			syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
+			indentType: (result.indentType as "tabs" | "spaces") || "spaces",
+			indentSize: (result.indentSize as 2 | 4 | 8) || 2,
+			formatterEnabled: (result.formatterEnabled as boolean) ?? false,
 		};
 	} catch {
 		return {
 			theme: defaultDarkTheme,
 			fontSize: 14,
 			openOnClick: false,
-			enterToSaveAndExit: false,
-			confirmOnBackdropClick: true,
+			enterToSaveAndExit: true,
+			confirmOnBackdropClick: false,
 			syntaxLanguage: "plaintext",
+			indentType: "spaces",
+			indentSize: 2,
+			formatterEnabled: false,
 		};
 	}
 }
@@ -305,8 +461,8 @@ async function openEditor(startInInsertMode = false) {
 	}
 
 	const config = await getConfig();
-	const initialText = getElementText(activeElement);
-	const shouldStartInInsertMode = startInInsertMode || config.openOnClick;
+	const initialText = await getElementText(activeElement);
+	const shouldStartInInsertMode = startInInsertMode;
 
 	// Create shadow DOM host for style isolation
 	shadowHost = document.createElement("div");
@@ -395,6 +551,9 @@ async function openEditor(startInInsertMode = false) {
 			confirmOnBackdropClick={config.confirmOnBackdropClick}
 			inputLabel={inputLabel}
 			initialLanguage={config.syntaxLanguage}
+			indentType={config.indentType}
+			indentSize={config.indentSize}
+			formatterEnabled={config.formatterEnabled}
 			onLanguageChange={async (language) => {
 				try {
 					await browser.storage.sync.set({ syntaxLanguage: language });
@@ -402,9 +561,9 @@ async function openEditor(startInInsertMode = false) {
 					console.error("Failed to save syntax language:", error);
 				}
 			}}
-			onSave={(text) => {
+			onSave={async (text) => {
 				if (targetElement) {
-					setElementText(targetElement, text);
+					await setElementText(targetElement, text);
 				}
 			}}
 			onClose={closeEditor}

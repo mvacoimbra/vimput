@@ -1,18 +1,29 @@
 import {
+	CheckCircle,
 	CornerDownLeft,
+	Download,
 	HelpCircle,
+	IndentIncrease,
 	MessageCircleWarning,
 	MousePointerClick,
+	RefreshCw,
 	RotateCcw,
+	Sparkles,
 	Type,
+	XCircle,
 } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	checkWorkerStatus,
+	getWorkerDownloadUrl,
+	type WorkerStatus,
+} from "@/lib/formatter";
 import { builtInThemes, getThemeById, type ThemeColors } from "@/lib/themes";
 import { useConfigStore } from "@/stores/configStore";
 
@@ -136,6 +147,9 @@ export function SettingsPanel() {
 		openOnClick,
 		enterToSaveAndExit,
 		confirmOnBackdropClick,
+		indentType,
+		indentSize,
+		formatterEnabled,
 		setThemeId,
 		setCustomColors,
 		resetCustomColors,
@@ -143,12 +157,42 @@ export function SettingsPanel() {
 		setOpenOnClick,
 		setEnterToSaveAndExit,
 		setConfirmOnBackdropClick,
+		setIndentType,
+		setIndentSize,
+		setFormatterEnabled,
 		loadFromStorage,
 	} = useConfigStore();
+
+	const [workerStatus, setWorkerStatus] = useState<WorkerStatus | null>(null);
+	const [checkingWorker, setCheckingWorker] = useState(false);
 
 	useEffect(() => {
 		loadFromStorage();
 	}, [loadFromStorage]);
+
+	const refreshWorkerStatus = useCallback(async () => {
+		setCheckingWorker(true);
+		try {
+			const status = await checkWorkerStatus();
+			setWorkerStatus(status);
+		} finally {
+			setCheckingWorker(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		if (formatterEnabled) {
+			refreshWorkerStatus();
+		}
+	}, [formatterEnabled, refreshWorkerStatus]);
+
+	const handleDownloadScript = useCallback(() => {
+		const url = getWorkerDownloadUrl();
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = "vimput-formatter.py";
+		a.click();
+	}, []);
 
 	const currentTheme = getThemeById(themeId);
 	const hasCustomColors = Object.keys(customColors).length > 0;
@@ -345,6 +389,235 @@ export function SettingsPanel() {
 						<span>10px</span>
 						<span>24px</span>
 					</div>
+				</div>
+
+				<div className="space-y-3">
+					<div className="flex items-center gap-2">
+						<IndentIncrease
+							className="h-4 w-4"
+							style={{ color: colors?.headerMutedText }}
+						/>
+						<Label style={{ color: colors?.headerText }}>Indentation</Label>
+					</div>
+					<div className="flex gap-3">
+						<select
+							value={indentType}
+							onChange={(e) =>
+								setIndentType(e.target.value as "tabs" | "spaces")
+							}
+							className="flex h-9 flex-1 items-center justify-between rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2"
+							style={inputStyle}
+						>
+							<option
+								value="spaces"
+								style={{
+									backgroundColor: colors?.editorBackground,
+									color: colors?.editorText,
+								}}
+							>
+								Spaces
+							</option>
+							<option
+								value="tabs"
+								style={{
+									backgroundColor: colors?.editorBackground,
+									color: colors?.editorText,
+								}}
+							>
+								Tab
+							</option>
+						</select>
+						{indentType === "spaces" && (
+							<select
+								value={indentSize}
+								onChange={(e) =>
+									setIndentSize(Number(e.target.value) as 2 | 4 | 8)
+								}
+								className="flex h-9 w-20 items-center justify-between rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2"
+								style={inputStyle}
+							>
+								<option
+									value={2}
+									style={{
+										backgroundColor: colors?.editorBackground,
+										color: colors?.editorText,
+									}}
+								>
+									2
+								</option>
+								<option
+									value={4}
+									style={{
+										backgroundColor: colors?.editorBackground,
+										color: colors?.editorText,
+									}}
+								>
+									4
+								</option>
+								<option
+									value={8}
+									style={{
+										backgroundColor: colors?.editorBackground,
+										color: colors?.editorText,
+									}}
+								>
+									8
+								</option>
+							</select>
+						)}
+					</div>
+				</div>
+
+				<div className="space-y-3">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-2">
+							<Sparkles
+								className="h-4 w-4"
+								style={{ color: colors?.headerMutedText }}
+							/>
+							<div className="space-y-0.5">
+								<Label style={{ color: colors?.headerText }}>
+									Code Formatter
+								</Label>
+								<p
+									className="text-xs"
+									style={{ color: colors?.headerMutedText }}
+								>
+									Format code with :fmt or Space+c+f
+								</p>
+							</div>
+						</div>
+						<Switch
+							checked={formatterEnabled}
+							onCheckedChange={setFormatterEnabled}
+							style={
+								{
+									"--switch-bg": formatterEnabled
+										? colors?.statusText
+										: colors?.lineNumberBackground,
+									backgroundColor: formatterEnabled
+										? colors?.statusText
+										: colors?.lineNumberBackground,
+									borderColor: colors?.border,
+								} as React.CSSProperties
+							}
+						/>
+					</div>
+					{formatterEnabled && (
+						<div
+							className="rounded-md p-3 text-xs space-y-3"
+							style={{
+								backgroundColor: colors?.lineNumberBackground,
+								color: colors?.headerMutedText,
+								borderWidth: "1px",
+								borderStyle: "solid",
+								borderColor: colors?.border,
+							}}
+						>
+							{/* Worker Status */}
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-2">
+									{workerStatus?.available ? (
+										<CheckCircle
+											className="h-4 w-4"
+											style={{ color: "#22c55e" }}
+										/>
+									) : (
+										<XCircle className="h-4 w-4" style={{ color: "#ef4444" }} />
+									)}
+									<span style={{ color: colors?.headerText }}>
+										{workerStatus?.available
+											? "Worker connected"
+											: "Worker not running"}
+									</span>
+								</div>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={refreshWorkerStatus}
+									disabled={checkingWorker}
+									className="h-6 px-2"
+									style={{ color: colors?.statusText }}
+								>
+									<RefreshCw
+										className={`h-3 w-3 ${checkingWorker ? "animate-spin" : ""}`}
+									/>
+								</Button>
+							</div>
+
+							{/* Available formatters */}
+							{workerStatus?.available &&
+								Object.keys(workerStatus.formatters).length > 0 && (
+									<div>
+										<span style={{ color: colors?.headerMutedText }}>
+											Available:{" "}
+										</span>
+										<span style={{ color: colors?.headerText }}>
+											{Object.entries(workerStatus.formatters)
+												.map(([lang, cmd]) => `${lang} (${cmd})`)
+												.join(", ")}
+										</span>
+									</div>
+								)}
+
+							{/* Download and instructions */}
+							{!workerStatus?.available && (
+								<div className="space-y-2">
+									<p>Download the script and run it to enable formatting.</p>
+									<div className="flex gap-2">
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={handleDownloadScript}
+											className="h-7 text-xs"
+											style={{
+												borderColor: colors?.border,
+												color: colors?.headerText,
+												backgroundColor: colors?.editorBackground,
+											}}
+										>
+											<Download className="h-3 w-3 mr-1" />
+											Download Script
+										</Button>
+									</div>
+									<div
+										className="rounded p-2 text-xs space-y-2"
+										style={{
+											backgroundColor: colors?.editorBackground,
+											color: colors?.editorText,
+										}}
+									>
+										<div>
+											<span style={{ color: colors?.headerMutedText }}>
+												Linux/macOS:{" "}
+											</span>
+											<code className="font-mono">
+												python3 vimput-formatter.py
+											</code>
+										</div>
+										<div>
+											<span style={{ color: colors?.headerMutedText }}>
+												Windows:{" "}
+											</span>
+											<code className="font-mono">
+												python vimput-formatter.py
+											</code>
+										</div>
+									</div>
+									<p style={{ color: colors?.headerMutedText }}>
+										Requires Python 3.8+. Dependencies install automatically.
+									</p>
+								</div>
+							)}
+
+							{/* Privacy notice */}
+							<p>
+								<strong style={{ color: colors?.headerText }}>Privacy:</strong>{" "}
+								The worker runs 100% locally. Your code never leaves your
+								machine.
+							</p>
+						</div>
+					)}
 				</div>
 			</TabsContent>
 

@@ -24,3 +24,15 @@ web-ext.config.ts
 *.njsproj
 *.sln
 *.sw?
+
+# bv (beads viewer) local config and caches
+.bv/
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.*.local
+
+# Google Cloud service account keys
+vimput-*.json
+*-service-account*.json

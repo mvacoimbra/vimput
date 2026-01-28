@@ -1,4 +1,4 @@
-import { GripHorizontal, LogOut, Menu, Save, X } from "lucide-react";
+import { GripHorizontal, LogOut, Menu, Save, Sparkles, X } from "lucide-react";
 import { Highlight, type Language, themes } from "prism-react-renderer";
 import {
 	forwardRef,
@@ -23,6 +23,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { formatCode, isFormatterSupported } from "@/lib/formatter";
 import {
 	defaultDarkTheme,
 	type PrismThemeName,
@@ -100,6 +101,9 @@ interface VimputEditorProps {
 	inputLabel?: string;
 	initialLanguage?: string;
 	onLanguageChange?: (language: string) => void;
+	indentType?: "tabs" | "spaces";
+	indentSize?: 2 | 4 | 8;
+	formatterEnabled?: boolean;
 }
 
 interface Position {
@@ -126,6 +130,9 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			inputLabel,
 			initialLanguage = "plaintext",
 			onLanguageChange,
+			indentType = "spaces",
+			indentSize = 2,
+			formatterEnabled = false,
 		},
 		ref,
 	) {
@@ -147,6 +154,8 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 		const [selectedLanguage, setSelectedLanguage] = useState<
 			Language | "plaintext"
 		>(initialLanguage as Language | "plaintext");
+		const [statusMessage, setStatusMessage] = useState<string | null>(null);
+		const [isFormatting, setIsFormatting] = useState(false);
 
 		const handleLanguageChange = useCallback(
 			(language: string) => {
@@ -156,23 +165,96 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			[onLanguageChange],
 		);
 
+		const showTemporaryMessage = useCallback(
+			(message: string, duration = 3000) => {
+				setStatusMessage(message);
+				setTimeout(() => setStatusMessage(null), duration);
+			},
+			[],
+		);
+
+		const handleFormat = useCallback(async () => {
+			if (isFormatting) return;
+
+			if (!formatterEnabled) {
+				showTemporaryMessage("Formatter disabled. Enable in settings.");
+				return;
+			}
+
+			if (!isFormatterSupported(selectedLanguage)) {
+				showTemporaryMessage(`No formatter available for ${selectedLanguage}`);
+				return;
+			}
+
+			setIsFormatting(true);
+			showTemporaryMessage("Formatting...");
+			const result = await formatCode(vimState.text, selectedLanguage, {
+				indentType,
+				indentSize,
+			});
+			setIsFormatting(false);
+
+			if (result.success) {
+				setVimState((prev) => ({
+					...prev,
+					text: result.result,
+					cursor: { line: 0, column: 0 },
+				}));
+				showTemporaryMessage("Formatted");
+			} else {
+				showTemporaryMessage(result.error || "Format failed");
+			}
+		}, [
+			isFormatting,
+			formatterEnabled,
+			selectedLanguage,
+			vimState.text,
+			indentType,
+			indentSize,
+			showTemporaryMessage,
+		]);
+
+		// Handle pending actions from vim commands
+		useEffect(() => {
+			if (vimState.pendingAction === "format") {
+				handleFormat();
+				setVimState((prev) => ({ ...prev, pendingAction: null }));
+			}
+		}, [vimState.pendingAction, handleFormat]);
+
 		const editorRef = useRef<HTMLDivElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
 
 		const hasUnsavedChanges = vimState.text !== lastSavedText;
 
-		// Cursor blinking effect
+		// Cursor blinking effect - only blink when idle
+		const blinkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+			null,
+		);
+
 		useEffect(() => {
-			const blinkInterval = setInterval(() => {
-				setCursorVisible((prev) => !prev);
+			// Reset cursor to visible on any state change
+			setCursorVisible(true);
+
+			// Clear any existing blink interval
+			if (blinkIntervalRef.current) {
+				clearInterval(blinkIntervalRef.current);
+				blinkIntervalRef.current = null;
+			}
+
+			// Start blinking after a short delay (idle detection)
+			const blinkDelay = setTimeout(() => {
+				blinkIntervalRef.current = setInterval(() => {
+					setCursorVisible((prev) => !prev);
+				}, 530);
 			}, 530);
 
-			return () => clearInterval(blinkInterval);
-		}, []);
-
-		// Reset cursor visibility when state changes (e.g., typing, moving)
-		useEffect(() => {
-			setCursorVisible(true);
+			return () => {
+				clearTimeout(blinkDelay);
+				if (blinkIntervalRef.current) {
+					clearInterval(blinkIntervalRef.current);
+				}
+			};
 		}, []);
 
 		const colors = theme.colors;
@@ -325,7 +407,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 
 				// Handle special keys
 				if (key === "Tab") {
-					key = "\t";
+					key = indentType === "tabs" ? "\t" : " ".repeat(indentSize);
 				}
 
 				const prevCommand = vimState.commandBuffer;
@@ -360,6 +442,8 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 				isResizing,
 				handleSaveAndClose,
 				enterToSaveAndExit,
+				indentType,
+				indentSize,
 			],
 		);
 
@@ -511,7 +595,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 									<div
 										key={lineIndex}
 										className="whitespace-pre"
-										style={{ lineHeight: "1.5em" }}
+										style={{ lineHeight: "1.5em", minHeight: "1.5em" }}
 									>
 										{renderLineWithCursor(
 											line,
@@ -546,7 +630,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 													<div
 														key={lineIndex}
 														className="whitespace-pre"
-														style={{ lineHeight: "1.5em" }}
+														style={{ lineHeight: "1.5em", minHeight: "1.5em" }}
 													>
 														{renderHighlightedLine(
 															styledTokens,
@@ -578,7 +662,9 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 					}}
 				>
 					<div className="flex items-center gap-3">
-						{vimState.mode === "command" ? (
+						{statusMessage ? (
+							<span style={{ color: colors.commandText }}>{statusMessage}</span>
+						) : vimState.mode === "command" ? (
 							<span style={{ color: colors.commandText }}>
 								{vimState.commandBuffer}
 							</span>
@@ -618,7 +704,17 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 										className="text-xs cursor-pointer"
 										style={{ color: colors.headerText }}
 									>
-										{lang.label}
+										<span className="flex items-center gap-1.5">
+											{lang.label}
+											{formatterEnabled && isFormatterSupported(lang.value) && (
+												<span title="Formatter available (:fmt)">
+													<Sparkles
+														className="h-3 w-3"
+														style={{ color: colors.statusText }}
+													/>
+												</span>
+											)}
+										</span>
 									</SelectItem>
 								))}
 							</SelectContentNoPortal>
@@ -762,14 +858,16 @@ function renderChar(
 			<span key={charIndex} className="relative">
 				<span
 					style={{
-						color: colors.editorText,
 						position: "absolute",
-						left: 0,
+						left: "-1px",
+						top: "0.1em",
+						width: "2px",
+						height: "1.2em",
+						backgroundColor: colors.editorText,
 						opacity: cursorVisible ? 1 : 0,
+						pointerEvents: "none",
 					}}
-				>
-					|
-				</span>
+				/>
 				<span style={tokenStyle}>{char}</span>
 			</span>
 		);
@@ -824,6 +922,8 @@ function renderEndOfLineCursor(
 					style={{
 						backgroundColor: colors.visualSelection,
 						width: "0.5rem",
+						height: "1.5em",
+						verticalAlign: "text-bottom",
 					}}
 				>
 					{"\u00A0"}
@@ -835,18 +935,24 @@ function renderEndOfLineCursor(
 					style={
 						vimState.mode === "insert"
 							? {
-									color: colors.editorText,
+									width: "2px",
+									height: "1.2em",
+									backgroundColor: colors.editorText,
 									opacity: cursorVisible ? 1 : 0,
+									verticalAlign: "text-bottom",
+									marginTop: "0.1em",
 								}
 							: {
 									backgroundColor: cursorVisible
 										? colors.cursorBackground
 										: "transparent",
 									width: "0.5rem",
+									height: "1.5em",
+									verticalAlign: "text-bottom",
 								}
 					}
 				>
-					{vimState.mode === "insert" ? "|" : "\u00A0"}
+					{vimState.mode === "insert" ? "" : "\u00A0"}
 				</span>
 			)}
 		</>

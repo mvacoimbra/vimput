@@ -12,6 +12,8 @@ export interface CursorPosition {
 	column: number;
 }
 
+export type PendingAction = "format" | null;
+
 export interface VimState {
 	mode: VimMode;
 	text: string;
@@ -21,6 +23,7 @@ export interface VimState {
 	isLineYank: boolean;
 	visualStart: CursorPosition | null;
 	pendingOperator: string | null; // For operators like 'c', 'd' waiting for motion
+	pendingAction: PendingAction; // Action to be executed by the component
 }
 
 export interface VimAction {
@@ -29,20 +32,24 @@ export interface VimAction {
 }
 
 export function createInitialState(text: string = ""): VimState {
+	// Normalize line endings on initialization
+	const normalizedText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 	return {
 		mode: "normal",
-		text,
+		text: normalizedText,
 		cursor: { line: 0, column: 0 },
 		commandBuffer: "",
 		yankBuffer: "",
 		isLineYank: false,
 		visualStart: null,
 		pendingOperator: null,
+		pendingAction: null,
 	};
 }
 
 function getLines(text: string): string[] {
-	return text.split("\n");
+	// Normalize line endings (handle Windows \r\n and old Mac \r)
+	return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
 }
 
 function joinLines(lines: string[]): string {
@@ -213,7 +220,15 @@ export function processKey(state: VimState, key: string): VimState {
 			};
 		}
 
-		if (key.length === 1) {
+		// Insert printable characters (single char or multi-char like spaces for Tab)
+		if (
+			key.length >= 1 &&
+			!key.startsWith("Arrow") &&
+			key !== "Shift" &&
+			key !== "Control" &&
+			key !== "Alt" &&
+			key !== "Meta"
+		) {
 			const newLine =
 				currentLine.slice(0, state.cursor.column) +
 				key +
@@ -222,7 +237,7 @@ export function processKey(state: VimState, key: string): VimState {
 			return {
 				...state,
 				text: joinLines(lines),
-				cursor: { ...state.cursor, column: state.cursor.column + 1 },
+				cursor: { ...state.cursor, column: state.cursor.column + key.length },
 			};
 		}
 
@@ -492,6 +507,22 @@ export function processKey(state: VimState, key: string): VimState {
 		}
 		if (key === "g" && !state.commandBuffer) {
 			return { ...state, commandBuffer: "g" };
+		}
+
+		// Handle leader key sequences (<Space> as leader)
+		// <Space>cf - format code
+		if (key === "f" && state.commandBuffer === " c") {
+			return {
+				...state,
+				commandBuffer: "",
+				pendingAction: "format",
+			};
+		}
+		if (key === "c" && state.commandBuffer === " ") {
+			return { ...state, commandBuffer: " c" };
+		}
+		if (key === " " && !state.commandBuffer) {
+			return { ...state, commandBuffer: " " };
 		}
 
 		// Undo command buffer on other keys
@@ -1201,6 +1232,15 @@ function executeCommand(state: VimState): VimState {
 		case "q!":
 			// Force quit - will be handled by the component
 			return { ...state, mode: "normal", commandBuffer: "" };
+		case "fmt":
+		case "format":
+			// Format - will be handled by the component
+			return {
+				...state,
+				mode: "normal",
+				commandBuffer: "",
+				pendingAction: "format",
+			};
 		default:
 			return { ...state, mode: "normal", commandBuffer: "" };
 	}
