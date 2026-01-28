@@ -368,6 +368,7 @@ interface EditorConfig {
 	syntaxLanguage: string;
 	indentType: "tabs" | "spaces";
 	indentSize: 2 | 4 | 8;
+	formatterEnabled: boolean;
 }
 
 async function getConfig(): Promise<EditorConfig> {
@@ -382,6 +383,7 @@ async function getConfig(): Promise<EditorConfig> {
 			"syntaxLanguage",
 			"indentType",
 			"indentSize",
+			"formatterEnabled",
 		]);
 
 		const themeId = (result.themeId as string) || "default-dark";
@@ -408,6 +410,7 @@ async function getConfig(): Promise<EditorConfig> {
 			syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
 			indentType: (result.indentType as "tabs" | "spaces") || "spaces",
 			indentSize: (result.indentSize as 2 | 4 | 8) || 2,
+			formatterEnabled: (result.formatterEnabled as boolean) ?? false,
 		};
 	} catch {
 		return {
@@ -419,6 +422,7 @@ async function getConfig(): Promise<EditorConfig> {
 			syntaxLanguage: "plaintext",
 			indentType: "spaces",
 			indentSize: 2,
+			formatterEnabled: false,
 		};
 	}
 }
@@ -532,6 +536,7 @@ async function openEditor(startInInsertMode = false) {
 			initialLanguage={config.syntaxLanguage}
 			indentType={config.indentType}
 			indentSize={config.indentSize}
+			formatterEnabled={config.formatterEnabled}
 			onLanguageChange={async (language) => {
 				try {
 					await browser.storage.sync.set({ syntaxLanguage: language });

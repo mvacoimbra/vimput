@@ -12,6 +12,8 @@ export interface CursorPosition {
 	column: number;
 }
 
+export type PendingAction = "format" | null;
+
 export interface VimState {
 	mode: VimMode;
 	text: string;
@@ -21,6 +23,7 @@ export interface VimState {
 	isLineYank: boolean;
 	visualStart: CursorPosition | null;
 	pendingOperator: string | null; // For operators like 'c', 'd' waiting for motion
+	pendingAction: PendingAction; // Action to be executed by the component
 }
 
 export interface VimAction {
@@ -40,6 +43,7 @@ export function createInitialState(text: string = ""): VimState {
 		isLineYank: false,
 		visualStart: null,
 		pendingOperator: null,
+		pendingAction: null,
 	};
 }
 
@@ -496,6 +500,22 @@ export function processKey(state: VimState, key: string): VimState {
 		}
 		if (key === "g" && !state.commandBuffer) {
 			return { ...state, commandBuffer: "g" };
+		}
+
+		// Handle leader key sequences (<Space> as leader)
+		// <Space>cf - format code
+		if (key === "f" && state.commandBuffer === " c") {
+			return {
+				...state,
+				commandBuffer: "",
+				pendingAction: "format",
+			};
+		}
+		if (key === "c" && state.commandBuffer === " ") {
+			return { ...state, commandBuffer: " c" };
+		}
+		if (key === " " && !state.commandBuffer) {
+			return { ...state, commandBuffer: " " };
 		}
 
 		// Undo command buffer on other keys
@@ -1205,6 +1225,10 @@ function executeCommand(state: VimState): VimState {
 		case "q!":
 			// Force quit - will be handled by the component
 			return { ...state, mode: "normal", commandBuffer: "" };
+		case "fmt":
+		case "format":
+			// Format - will be handled by the component
+			return { ...state, mode: "normal", commandBuffer: "", pendingAction: "format" };
 		default:
 			return { ...state, mode: "normal", commandBuffer: "" };
 	}

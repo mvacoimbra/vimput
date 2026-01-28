@@ -1,4 +1,4 @@
-import { GripHorizontal, LogOut, Menu, Save, X } from "lucide-react";
+import { GripHorizontal, LogOut, Menu, Save, Sparkles, X } from "lucide-react";
 import { Highlight, type Language, themes } from "prism-react-renderer";
 import {
 	forwardRef,
@@ -8,6 +8,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { formatCode, isFormatterSupported } from "@/lib/formatter";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -102,6 +103,7 @@ interface VimputEditorProps {
 	onLanguageChange?: (language: string) => void;
 	indentType?: "tabs" | "spaces";
 	indentSize?: 2 | 4 | 8;
+	formatterEnabled?: boolean;
 }
 
 interface Position {
@@ -130,6 +132,7 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			onLanguageChange,
 			indentType = "spaces",
 			indentSize = 2,
+			formatterEnabled = false,
 		},
 		ref,
 	) {
@@ -151,6 +154,8 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 		const [selectedLanguage, setSelectedLanguage] = useState<
 			Language | "plaintext"
 		>(initialLanguage as Language | "plaintext");
+		const [statusMessage, setStatusMessage] = useState<string | null>(null);
+		const [isFormatting, setIsFormatting] = useState(false);
 
 		const handleLanguageChange = useCallback(
 			(language: string) => {
@@ -159,6 +164,52 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 			},
 			[onLanguageChange],
 		);
+
+		const showTemporaryMessage = useCallback((message: string, duration = 3000) => {
+			setStatusMessage(message);
+			setTimeout(() => setStatusMessage(null), duration);
+		}, []);
+
+		const handleFormat = useCallback(async () => {
+			if (isFormatting) return;
+
+			if (!formatterEnabled) {
+				showTemporaryMessage("Formatter disabled. Enable in settings.");
+				return;
+			}
+
+			if (!isFormatterSupported(selectedLanguage)) {
+				showTemporaryMessage(`No formatter available for ${selectedLanguage}`);
+				return;
+			}
+
+			setIsFormatting(true);
+			showTemporaryMessage("Formatting...");
+			const result = await formatCode(vimState.text, selectedLanguage, {
+				indentType,
+				indentSize,
+			});
+			setIsFormatting(false);
+
+			if (result.success) {
+				setVimState((prev) => ({
+					...prev,
+					text: result.result,
+					cursor: { line: 0, column: 0 },
+				}));
+				showTemporaryMessage("Formatted");
+			} else {
+				showTemporaryMessage(result.error || "Format failed");
+			}
+		}, [isFormatting, formatterEnabled, selectedLanguage, vimState.text, indentType, indentSize, showTemporaryMessage]);
+
+		// Handle pending actions from vim commands
+		useEffect(() => {
+			if (vimState.pendingAction === "format") {
+				handleFormat();
+				setVimState((prev) => ({ ...prev, pendingAction: null }));
+			}
+		}, [vimState.pendingAction, handleFormat]);
 
 		const editorRef = useRef<HTMLDivElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
@@ -600,7 +651,11 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 					}}
 				>
 					<div className="flex items-center gap-3">
-						{vimState.mode === "command" ? (
+						{statusMessage ? (
+							<span style={{ color: colors.commandText }}>
+								{statusMessage}
+							</span>
+						) : vimState.mode === "command" ? (
 							<span style={{ color: colors.commandText }}>
 								{vimState.commandBuffer}
 							</span>
@@ -640,7 +695,16 @@ export const VimputEditor = forwardRef<VimputEditorRef, VimputEditorProps>(
 										className="text-xs cursor-pointer"
 										style={{ color: colors.headerText }}
 									>
-										{lang.label}
+										<span className="flex items-center gap-1.5">
+											{lang.label}
+											{formatterEnabled && isFormatterSupported(lang.value) && (
+												<Sparkles
+													className="h-3 w-3"
+													style={{ color: colors.statusText }}
+													title="Formatter available (:fmt)"
+												/>
+											)}
+										</span>
 									</SelectItem>
 								))}
 							</SelectContentNoPortal>

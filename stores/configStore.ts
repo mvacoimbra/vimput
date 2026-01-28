@@ -19,6 +19,7 @@ export interface ConfigState {
 	syntaxLanguage: string;
 	indentType: IndentType;
 	indentSize: IndentSize;
+	formatterEnabled: boolean;
 	setThemeId: (themeId: string) => void;
 	setCustomColors: (colors: Partial<ThemeColors>) => void;
 	resetCustomColors: () => void;
@@ -29,6 +30,7 @@ export interface ConfigState {
 	setSyntaxLanguage: (language: string) => void;
 	setIndentType: (type: IndentType) => void;
 	setIndentSize: (size: IndentSize) => void;
+	setFormatterEnabled: (enabled: boolean) => void;
 	getActiveTheme: () => Theme;
 	loadFromStorage: () => Promise<void>;
 	saveToStorage: () => Promise<void>;
@@ -44,6 +46,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 	syntaxLanguage: "plaintext",
 	indentType: "spaces",
 	indentSize: 2,
+	formatterEnabled: false,
 
 	setThemeId: (themeId: string) => {
 		set({ themeId, customColors: {} });
@@ -95,6 +98,11 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 		get().saveToStorage();
 	},
 
+	setFormatterEnabled: (enabled: boolean) => {
+		set({ formatterEnabled: enabled });
+		get().saveToStorage();
+	},
+
 	getActiveTheme: () => {
 		const { themeId, customColors } = get();
 		const baseTheme = getThemeById(themeId) || defaultDarkTheme;
@@ -126,6 +134,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				"syntaxLanguage",
 				"indentType",
 				"indentSize",
+				"formatterEnabled",
 			]);
 			set({
 				themeId: (result.themeId as string) || "default-dark",
@@ -138,6 +147,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				syntaxLanguage: (result.syntaxLanguage as string) || "plaintext",
 				indentType: (result.indentType as IndentType) || "spaces",
 				indentSize: (result.indentSize as IndentSize) || 2,
+				formatterEnabled: (result.formatterEnabled as boolean) ?? false,
 			});
 		} catch (error) {
 			console.error("Failed to load config from storage:", error);
@@ -156,6 +166,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				syntaxLanguage,
 				indentType,
 				indentSize,
+				formatterEnabled,
 			} = get();
 			await browser.storage.sync.set({
 				themeId,
@@ -167,6 +178,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 				syntaxLanguage,
 				indentType,
 				indentSize,
+				formatterEnabled,
 			});
 		} catch (error) {
 			console.error("Failed to save config to storage:", error);
