@@ -132,11 +132,16 @@ jobs:
             .output/*.zip
 
       - name: Upload to Chrome Web Store
-        if: ${{ secrets.CHROME_SERVICE_ACCOUNT_KEY != '' && vars.CHROME_EXTENSION_ID != '' }}
         env:
           CHROME_SERVICE_ACCOUNT_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_KEY }}
           EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
         run: |
+          # Skip if credentials not configured
+          if [ -z "$CHROME_SERVICE_ACCOUNT_KEY" ] || [ -z "$EXTENSION_ID" ]; then
+            echo "Chrome Web Store credentials not configured, skipping upload"
+            exit 0
+          fi
+
           # Install Google Auth library
           pnpm add -D google-auth-library
 
@@ -169,12 +174,21 @@ jobs:
           rm /tmp/service-account.json
 
       - name: Upload to Firefox Add-ons
-        if: ${{ vars.AMO_EXTENSION_ID != '' }}
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          AMO_EXTENSION_ID: ${{ vars.AMO_EXTENSION_ID }}
         run: |
+          # Skip if credentials not configured
+          if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
+            echo "Firefox Add-ons credentials not configured, skipping upload"
+            exit 0
+          fi
+
           pnpm add -D web-ext
           pnpm web-ext sign \
             --channel=listed \
             --source-dir=.output/firefox-mv2 \
-            --api-key=${{ secrets.AMO_JWT_ISSUER }} \
-            --api-secret=${{ secrets.AMO_JWT_SECRET }}
+            --api-key=$AMO_JWT_ISSUER \
+            --api-secret=$AMO_JWT_SECRET
         continue-on-error: true  # AMO review can take time
