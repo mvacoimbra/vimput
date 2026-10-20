@@ -58,7 +58,7 @@ This is a WXT-based browser extension using React and TypeScript.
 
 - **components/ui/** - shadcn/ui components (Radix primitives with Tailwind)
 - **components/SettingsPanel.tsx** - Settings UI in popup
-- **components/BuyMeCoffee.tsx** - Support link component
+- **components/BuyMeCoffee.tsx** - Support button that opens a $1 Stripe Payment Link
 
 ## Issue Tracking
 
