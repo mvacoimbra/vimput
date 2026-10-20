@@ -7,6 +7,9 @@ import { Separator } from "@/components/ui/separator";
 import { getThemeById } from "@/lib/themes";
 import { useConfigStore } from "@/stores/configStore";
 
+// Stripe Payment Link for a fixed $1 donation
+const DONATION_PAYMENT_LINK = "https://buy.stripe.com/4gM14p63w9pC22p4qRfMA00";
+
 function App() {
 	const { themeId, customColors, loadFromStorage } = useConfigStore();
 
@@ -131,7 +134,7 @@ function App() {
 
 			<Separator style={{ backgroundColor: colors?.border }} />
 
-			{/* Footer with Buy Me a Coffee */}
+			{/* Footer with $1 donation via Stripe */}
 			<div className="p-4 space-y-3">
 				<div className="text-center">
 					<p
@@ -140,7 +143,7 @@ function App() {
 					>
 						Enjoying Vimput? Support the development!
 					</p>
-					<BuyMeCoffee username="mvacoimbra" />
+					<BuyMeCoffee paymentLink={DONATION_PAYMENT_LINK} />
 				</div>
 
 				<div
