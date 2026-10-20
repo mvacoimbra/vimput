@@ -92,7 +92,7 @@ function App() {
 							color: colors?.statusText,
 						}}
 					>
-						v1.3.4
+						v1.3.5
 					</Badge>
 				</div>
 			</div>
